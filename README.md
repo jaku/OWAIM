@@ -25,8 +25,76 @@ The server keeps track of every session that connects and extends their properti
  - Profiles
  - Away Messages
 
+<<<<<<< HEAD
 ## What Doesn't?
  - Directory services
  - Ad Services (this doesn't really seem like a bad thing though)
  - Email (POP)
  - Server Stored Buddy Icons and Meta Data
+=======
+```bash
+git clone https://github.com/qwell/happy-ts.git
+```
+
+Navigate to the repo directory.
+
+```bash
+cd happy-ts
+```
+
+Install dependencies using Yarn.
+
+```bash
+yarn install
+```
+
+## Available Scripts
+
+- `lint`: Run ESLint to check for code quality issues.
+
+```bash
+yarn lint
+```
+
+- `format`: Run Prettier to format the code.
+
+```bash
+yarn format
+```
+
+- `clean`: Clean up generated artifacts (like the `dist/` directory).
+
+```bash
+yarn clean
+```
+
+- `build`: Compile TypeScript files and output in the `dist/` directory.
+
+```bash
+yarn build
+```
+
+- `start`: Execute the compiled `dist/index.js`.
+
+```bash
+yarn start
+```
+
+- `test`: Execute tests with Vitest.
+
+```bash
+yarn test
+```
+
+## Contributing
+
+If you'd like to contribute, pull requests and issues are always appreciated.
+
+## License
+
+[GPLv3](https://www.gnu.org/licenses/gpl-3.0.en.html)
+
+## TODO
+
+- Add Yarn workspaces/monorepo support (written, not yet committed).
+>>>>>>> 97c5425 (Add Vitest to documentation.)
