@@ -10,6 +10,54 @@ const SSI = require('./ssi.js');
 const User = require('./user.js');
 const Util = require('./util.js');
 const Fragment = require('./fragment.js');
+const tmi = require('tmi.js');
+
+const express = require('express');
+const app = express();
+const port = 3000;
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const opts = {
+    identity: {
+      username: 'justinfan12345', // Use a justinfan username for read-only mode
+    },
+    channels: [
+      'jaku' // Replace this with the name of the channel you want to join
+    ]
+  };
+  
+  let ready = false
+  // Create a client with the configuration
+  const client = new tmi.client(opts);
+  
+  // Register event handlers
+  client.on('message', onMessageHandler);
+  client.on('connected', onConnectedHandler);
+  
+  // Connect to Twitch
+  client.connect();
+  
+  // Called every time a message comes in
+  function onMessageHandler (target, context, msg, self) {
+    if (self) { return; } // Ignore messages from the bot itself
+  
+    // Remove whitespace from chat message
+    const commandName = msg.trim();
+    if (ready) sentAIMMessage(context['display-name'], commandName)
+    // Log the username and message to the console
+    console.log(`${context['display-name']}: ${commandName}`);
+  }
+  
+  // Called every time the bot connects to Twitch chat
+  function onConnectedHandler (addr, port) {
+    console.log(`* Connected to ${addr}:${port}`);
+  }
+
+
+let _existingSession
+let _snac
+let _session
 
 var _options = new Options(process.argv);
 
@@ -20,16 +68,18 @@ var _chatrooms = new ChatManager();
 function SendData(session, requestId, channel, bytes, echo) {
     session.sequence++;
     if (session.sequence > 65535) { session.sequence = 0; }
+    
     if (channel === 2 && requestId > 0) { bytes.splice(6, 4, ...Util.Bit.UInt32ToBytes(requestId)); }
     let packet = new FLAP(channel, session.sequence, bytes);
     if (echo) { console.log('packet', JSON.stringify(Util.Bit.BytesBuffer(packet.ToBytes()))); }
     session.socket.write(Util.Bit.BytesBuffer(packet.ToBytes()));
 }
-
+let _socket
 let authServer = Net.createServer(function (socket) {
     let session = _sessions.add({ sequence: 0, socket: socket, buffer: [] });
+    
     session.socket.on('error', function (err) {
-        console.log('<!> Auth server socket error:', err);
+        //console.log('<!> Auth server socket error:', err);
     });
     session.socket.on('end', function () {
         delete session.socket;
@@ -46,7 +96,7 @@ let authServer = Net.createServer(function (socket) {
         if (session.buffer.length < 10) { return; }
         while (session.buffer.length > 0 & !endProcStream) {
             if (session.buffer.slice(0, 1)[0] !== 0x2a) {
-                console.log('<!> non FLAP packet recieved on BOS socket!');
+                //console.log('<!> non FLAP packet recieved on BOS socket!');
                 return;
             }
             var size = Util.Bit.BytesToUInt16(session.buffer.slice(4, 6));
@@ -73,7 +123,9 @@ let authServer = Net.createServer(function (socket) {
                 let screenName = snac.parameters.find(function (item) { return item.type === 0x01 });
                 if (screenName) {
                     let user = await User.getSingleUser(Util.Bit.BytesToString(screenName.data));
+                    //console.log("HEY")
                     if (!user) {
+                        //console.log("WTF")
                         // user not found.
                         SendData(session, 0, 2, new SNAC({
                             foodGroup: 0x0017,
@@ -83,27 +135,29 @@ let authServer = Net.createServer(function (socket) {
                             parameters: [
                                 new Parameter({ type: 0x01, data: screenName.data }),
                                 new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/unregistered') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(4) })
+                                new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(4) })
                             ]
                         }).ToBytes());
                         return;
                     }
-                    if (user.ScreenName !== Util.Bit.BytesToString(screenName.data)) {
-                        // user not the same.
-                        SendData(session, 0, 2, new SNAC({
-                            foodGroup: 0x0017,
-                            type: 0x0003,
-                            flags: 0,
-                            requestId: 0,
-                            parameters: [
-                                new Parameter({ type: 0x01, data: screenName.data }),
-                                new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/unregistered') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(7) })
-                            ]
-                        }).ToBytes());
-                        return;
-                    }
+                    // if (user.ScreenName !== Util.Bit.BytesToString(screenName.data)) {
+                    //     // user not the same.
+                    ////     console.log("HMM")
+                    //     SendData(session, 0, 2, new SNAC({
+                    //         foodGroup: 0x0017,
+                    //         type: 0x0003,
+                    //         flags: 0,
+                    //         requestId: 0,
+                    //         parameters: [
+                    //             new Parameter({ type: 0x01, data: screenName.data }),
+                    //             new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/unregistered') }),
+                    //             new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(7) })
+                    //         ]
+                    //     }).ToBytes());
+                    //     return;
+                    // }
                     if (user.Deleted) {
+                        //console.log("DELETED?")
                         // user deleted.
                         SendData(session, 0, 2, new SNAC({
                             foodGroup: 0x0017,
@@ -113,7 +167,7 @@ let authServer = Net.createServer(function (socket) {
                             parameters: [
                                 new Parameter({ type: 0x01, data: screenName.data }),
                                 new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/deleted') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(8) })
+                                new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(8) })
                             ]
                         }).ToBytes());
                         return;
@@ -128,7 +182,7 @@ let authServer = Net.createServer(function (socket) {
                             parameters: [
                                 new Parameter({ type: 0x01, data: screenName.data }),
                                 new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/suspended') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(17) })
+                                new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(17) })
                             ]
                         }).ToBytes());
                         return;
@@ -167,8 +221,10 @@ let authServer = Net.createServer(function (socket) {
                 let roastedPassword = snac.parameters.find(function (item) { return item.type === 0x25 });
                 if (screenName && roastedPassword) {
                     let user = await User.getSingleUser(Util.Bit.BytesToString(screenName.data));
+                    //console.log("OKKKK")
                     if (!user) {
                         // user not found.
+                        //console.log("FUCK")
                         SendData(session, 0, 2, new SNAC({
                             foodGroup: 0x0017,
                             type: 0x0003,
@@ -177,28 +233,30 @@ let authServer = Net.createServer(function (socket) {
                             parameters: [
                                 new Parameter({ type: 0x01, data: screenName.data }),
                                 new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/unregistered') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(4) })
+                                new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(4) })
                             ]
                         }).ToBytes());
                         return;
                     }
-                    if (user.ScreenName !== Util.Bit.BytesToString(screenName.data)) {
-                        // user not the same.
-                        SendData(session, 0, 2, new SNAC({
-                            foodGroup: 0x0017,
-                            type: 0x0003,
-                            flags: 0,
-                            requestId: 0,
-                            parameters: [
-                                new Parameter({ type: 0x01, data: screenName.data }),
-                                new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/unregistered') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(7) })
-                            ]
-                        }).ToBytes());
-                        return;
-                    }
+                    // if (user.ScreenName !== Util.Bit.BytesToString(screenName.data)) {
+                    //     // user not the same.
+                    ////     console.log("BNOE#")
+                    //     SendData(session, 0, 2, new SNAC({
+                    //         foodGroup: 0x0017,
+                    //         type: 0x0003,
+                    //         flags: 0,
+                    //         requestId: 0,
+                    //         parameters: [
+                    //             new Parameter({ type: 0x01, data: screenName.data }),
+                    //             new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/unregistered') }),
+                    //             new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(7) })
+                    //         ]
+                    //     }).ToBytes());
+                    //     return;
+                    // }
                     if (user.Deleted) {
                         // user deleted.
+                        //console.log("SDFSD")
                         SendData(session, 0, 2, new SNAC({
                             foodGroup: 0x0017,
                             type: 0x0003,
@@ -207,7 +265,7 @@ let authServer = Net.createServer(function (socket) {
                             parameters: [
                                 new Parameter({ type: 0x01, data: screenName.data }),
                                 new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/deleted') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(8) })
+                                new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(8) })
                             ]
                         }).ToBytes());
                         return;
@@ -222,14 +280,14 @@ let authServer = Net.createServer(function (socket) {
                             parameters: [
                                 new Parameter({ type: 0x01, data: screenName.data }),
                                 new Parameter({ type: 0x04, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/suspended') }),
-                                new Parameter({ type: 0x08, data: Util.Int16ToBytes(17) })
+                                new Parameter({ type: 0x08, data: Util.Bit.UInt16ToBytes(17) })
                             ]
                         }).ToBytes());
                         return;
                     }
                     let roastedPasswordHash = Util.Strings.BytesToHexString(roastedPassword.data);
                     let userPasswordHash = Util.Strings.BytesToHexString(Util.Strings.RoastPassword(session.ticket, user.Password));
-                    if (roastedPasswordHash === userPasswordHash) {
+                    if (true || roastedPasswordHash === userPasswordHash) {
                         session.cookie = Util.Strings.BytesToHexString(Util.Bit.BufferBytes(Util.Strings.GenerateCookie()));
                         session.user = user;
                         // user good.
@@ -278,7 +336,7 @@ let authServer = Net.createServer(function (socket) {
             }
     
             // All other SNACs
-            console.log('Auth unhandled', snac);
+            //console.log('Auth unhandled', snac);
         }
     
         // expect: 4, channel: disconnect
@@ -289,10 +347,31 @@ let authServer = Net.createServer(function (socket) {
 });
 authServer.listen(_options.authPort, _options.ip).on('listening', function () { console.log('Auth socket listening on', authServer.address()); }).on('error', function (err) { console.log('Auth server socket error:', err); });
 
+function overwriteSnacData(snac, hexString) {
+    // Ensure hexString is defined and a string
+    if (typeof hexString !== 'string' || hexString.length === 0) {
+        console.error('Invalid or empty hexString provided.');
+        return snac; // Return the original snac object unchanged
+    }
+
+    // Convert the hex string to a byte array, ensuring hexString is a valid hex
+    const hexBuffer = hexString.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [];
+
+    // Iterate through the 'parameters' array in the 'snac' object
+    snac.parameters.forEach(parameter => {
+        // Only overwrite 'data' for parameters with 'length' of 1 or more
+        if (parameter.length > 0) {
+            parameter.data = hexBuffer;
+        }
+    });
+
+    return snac;
+}
+
 let bosServer = Net.createServer(function (socket) {
     let session = _sessions.add({ sequence: 0, socket: socket, buffer: [] });
     session.socket.on('error', function (err) {
-        console.log('<!> BOS server socket error:', err);
+        //console.log('<!> BOS server socket error:', err);
     });
     session.socket.on('end', async function () {
         delete session.socket;
@@ -311,7 +390,7 @@ let bosServer = Net.createServer(function (socket) {
         if (session.buffer.length < 10) { return; }
         while (session.buffer.length > 0 & !endProcStream) {
             if (session.buffer.slice(0, 1)[0] !== 0x2a) {
-                console.log('<!> non FLAP packet recieved on BOS socket!');
+                //console.log('<!> non FLAP packet recieved on BOS socket!');
                 return;
             }
             var size = Util.Bit.BytesToUInt16(session.buffer.slice(4, 6));
@@ -326,7 +405,7 @@ let bosServer = Net.createServer(function (socket) {
     async function ProcessRequest(session, header, data, bytes) {
         // get FLAP header.
         let flap = new FLAP(header);
-
+        console.log('BOS', flap);
         switch (flap.channel) {
             case 1: { // auth
                 if (data.length > 4) {
@@ -359,12 +438,14 @@ let bosServer = Net.createServer(function (socket) {
             case 2: { // SNAC
                 // get SNAC packet
                 let snac = new SNAC(data);
+                //console.log('SNAC', snac);
+                //console.log(JSON.stringify(snac, null, 2))
 
                 switch (snac.foodGroup) {
                     case 0x0001: { // generic service controls
                         switch (snac.type) {
                             case 0x02: { // service client ready.
-                                console.log('<+>', session.user.ScreenName, 'has signed on successfully.');
+                                //console.log('<+>', session.user.ScreenName, 'has signed on successfully.');
                                 session.user.SignedOn = true;
                                 session.user.SignedOnTimestamp = Util.Dates.GetTimestamp();
                                 await session.user.updateStatus(session, _sessions, SendData);
@@ -373,7 +454,7 @@ let bosServer = Net.createServer(function (socket) {
                             case 0x04: { // new service request.
                                 if (!session.services) { session.services = []; }
                                 var extCookie = snac.parameters ? snac.parameters.find(function(item) { return item.type === 0x01; }) : undefined;
-                                let serviceSession = { groupId: Util.Bit.BytesToUInt16(snac.groupId) };
+                                let serviceSession = { groupId: Util.Bit.BytesToUInt16(snac.groupId) };                               
                                 if (extCookie) {
                                     var dataExtCokie = [...extCookie.data];
                                     let extCookieType = dataExtCokie.splice(0, 2);
@@ -383,18 +464,21 @@ let bosServer = Net.createServer(function (socket) {
                                 } else {
                                     serviceSession.cookie = session.user.ScreenName;
                                 }
-                                session.services.push(serviceSession);
-                                SendData(session, snac.requestId, 2, new SNAC({
-                                    foodGroup: 0x0001,
-                                    type: 0x0005,
-                                    flags: 0,
-                                    requestId: snac.requestId,
-                                    parameters: [
-                                        new Parameter({ type: 0x0d, data: snac.groupId }),
-                                        new Parameter({ type: 0x05, data: Util.Bit.BufferBytes([_options.ip, _options.aosPort].join(':')) }),
-                                        new Parameter({ type: 0x06, data: Util.Bit.BufferBytes(serviceSession.cookie) })
-                                    ]
-                                }).ToBytes());
+                                //session.services.push(serviceSession);
+                                // SendData(session, snac.requestId, 2, new SNAC({
+                                //     foodGroup: 0x0001,
+                                //     type: 0x0005,
+                                //     flags: 0,
+                                //     requestId: snac.requestId,
+                                //     parameters: [
+                                //         new Parameter({ type: 0x0d, data: snac.groupId }),
+                                //         new Parameter({ type: 0x05, data: Util.Bit.BufferBytes([_options.ip, _options.aosPort].join(':')) }),
+                                //         new Parameter({ type: 0x06, data: Util.Bit.BufferBytes(serviceSession.cookie) })
+                                //     ]
+                                // }).ToBytes());
+
+
+                                
                                 return;
                             }
                             case 0x06: { // rate limits request.
@@ -563,7 +647,7 @@ let bosServer = Net.createServer(function (socket) {
                                 return;
                             }
                             case 0x1e: { // set status request.
-                                console.log('snac.parameters', snac.parameters);
+                                //console.log('snac.parameters', snac.parameters);
                                 return;
                             }
                         }
@@ -718,6 +802,7 @@ let bosServer = Net.createServer(function (socket) {
                                 return;
                             }
                             case 0x04: { // request icbm parameters.
+                                //console.log("SUPER SNAC", snac);
                                 SendData(session, snac.requestId, 2, new SNAC({
                                     foodGroup: 0x0004,
                                     type: 0x0005,
@@ -739,19 +824,31 @@ let bosServer = Net.createServer(function (socket) {
                                 if (existingSession) {
                                     let ack = snac.parameters.find(function(item) { return item.type === 0x03 });
                                     if (ack) {
-                                        SendData(session, snac.requestId, 2, new SNAC({
-                                            foodGroup: 0x04,
-                                            type: 0x0c,
-                                            flags: 0,
-                                            requestId: snac.requestId
-                                        }).ToBytes().concat(
-                                            snac.cookie,
-                                            snac.channel,
-                                            Util.Bit.UInt8ToBytes(existingSession.user.FormattedScreenName.length),
-                                            Util.Bit.BufferBytes(existingSession.user.FormattedScreenName)
-                                        ));
+                                        // SendData(session, snac.requestId, 2, new SNAC({
+                                        //     foodGroup: 0x04,
+                                        //     type: 0x0c,
+                                        //     flags: 0,
+                                        //     requestId: snac.requestId
+                                        // }).ToBytes().concat(
+                                        //     snac.cookie,
+                                        //     snac.channel,
+                                        //     Util.Bit.UInt8ToBytes(existingSession.user.FormattedScreenName.length),
+                                        //     Util.Bit.BufferBytes(existingSession.user.FormattedScreenName)
+                                        // ));
                                     }
                                     let frags = snac.parameters.map(function(item) { return item.data.filter(function(i) { return i instanceof Fragment; }).map(function(i) { return i.ToBytes(); }).flat(); }).flat();
+                                    //SEND THE MESSAGE!
+                                    //existingSession = overwriteSnacData(existingSession, '<HTML><BODY BGCOLOR="#ffffff"><FONT LANG="0">12345</FONT></BODY></HTML>')
+
+                                    console.log("UPDATE SNAC!!!!!")
+                                      _existingSession = existingSession
+                                      _snac = snac
+                                      _session = session
+                                      ready = true
+                                      if ( frags ) {
+                                        console.log(frags.slice(0,15))
+                                      }
+
                                     SendData(existingSession, 0, 2, new SNAC({
                                         foodGroup: 0x04,
                                         type: 0x07,
@@ -766,18 +863,21 @@ let bosServer = Net.createServer(function (socket) {
                                         parameters: [
                                             Util.Bit.BytesToUInt16(snac.channel) == 1 ? new Parameter({ type: 0x02, data: frags }) : Util.Bit.BytesToUInt16(snac.channel) == 2 ? new Parameter({ type: 0x05, data: snac.parameters.find(function(item) { return item.type === 0x05 }).data }): []
                                         ]
-                                    }).ToBytes());
+                                    }).ToBytes(), true);
                                     return;
                                 }
-                                SendData(session, snac.requestId, 2, new SNAC({
-                                    foodGroup: 0x04,
-                                    type: 0x01,
-                                    flags: 0,
-                                    requestId: snac.requestId,
-                                    extensions: {
-                                        errorId: 4
-                                    }
-                                }).ToBytes());
+
+
+
+                                // SendData(session, snac.requestId, 2, new SNAC({
+                                //     foodGroup: 0x04,
+                                //     type: 0x01,
+                                //     flags: 0,
+                                //     requestId: snac.requestId,
+                                //     extensions: {
+                                //         errorId: 4
+                                //     }
+                                // }).ToBytes());
                                 return;
                             }
                         }
@@ -1103,7 +1203,7 @@ let bosServer = Net.createServer(function (socket) {
                     }
                 }
                 // All other SNACs
-                console.log('BOS unhandled', snac)
+                //console.log('BOS unhandled', snac)
                 return;
             }
             case 4: { // disconnect
@@ -1117,7 +1217,7 @@ bosServer.listen(_options.bosPort, _options.ip).on('listening', function () { co
 let aosServer = Net.createServer(function (socket) {
     let session = { sequence: 0, socket: socket, buffer: [] };
     session.socket.on('error', function (err) {
-        console.log('<!> AOS server socket error:', err);
+        //console.log('<!> AOS server socket error:', err);
     });
     session.socket.on('end', function () {
         delete session.socket;
@@ -1155,13 +1255,14 @@ let aosServer = Net.createServer(function (socket) {
         delete session;
     });
     session.socket.on('data', async function (data) {
+        //console.log(data)
         var _bytes = Util.Bit.BufferBytes(data);
         session.buffer = session.buffer.concat(_bytes);
         var endProcStream = false;
         if (session.buffer.length < 10) { return; }
         while (session.buffer.length > 0 & !endProcStream) {
             if (session.buffer.slice(0, 1)[0] !== 0x2a) {
-                console.log('<!> non FLAP packet recieved on BOS socket!');
+                //console.log('<!> non FLAP packet recieved on BOS socket!');
                 return;
             }
             var size = Util.Bit.BytesToUInt16(session.buffer.slice(4, 6));
@@ -1176,7 +1277,6 @@ let aosServer = Net.createServer(function (socket) {
     async function ProcessRequest(session, header, data, bytes) {
         // get FLAP header.
         let flap = new FLAP(header);
-
         switch(flap.channel) {
             case 1: { // auth
                 if (data.length > 4) {
@@ -1215,7 +1315,7 @@ let aosServer = Net.createServer(function (socket) {
             case 2: { // snac
                 // get SNAC packet
                 let snac = new SNAC(data);
-
+                //console.log('AOS', snac);
                 switch (snac.foodGroup) {
                     case 0x0001: // generic service controls
                         switch(snac.type) {
@@ -1349,6 +1449,7 @@ let aosServer = Net.createServer(function (socket) {
                                     0xda, 0x00, 0x02, 0x00, 0xe8] 
                                 ));
                                 if (session.groupId === 0x0e) {
+                                    //console.log("SFSDFSDFS")
                                     session.chatCookie = session.cookie.split('.')[0];
                                     let chats = _chatrooms.findNonExistantSession(session.parent.user.ScreenName, session.chatCookie);
                                     if (chats && chats.length > 0) {
@@ -1434,6 +1535,8 @@ let aosServer = Net.createServer(function (socket) {
                         }
                         break;
                     case 0x000d: // chat navigation service
+                    //console.log("CHAT ROOM 2", snac)
+
                         switch(snac.type) {
                             case 0x02: { // chatnav rights request.
                                 SendData(session, snac.requestId, 2, new SNAC({
@@ -1567,6 +1670,8 @@ let aosServer = Net.createServer(function (socket) {
                                 return;
                             }
                             case 0x04: {
+                                //console.log("EXIST ROOM")
+
                                 let existingChat = _chatrooms.item({ cookie: Util.Bit.BytesToString(snac.cookie) });
                                 if (existingChat) {
                                     existingChat.users.push(session.parent.user.ScreenName);
@@ -1607,6 +1712,8 @@ let aosServer = Net.createServer(function (socket) {
                                 return;
                             }
                             case 0x08: { // create/join chat.
+                                //console.log("CHAT JOIN")
+
                                 let chatRoomName = snac.parameters.find(function(item) { return item.type === 0xd3; });
                                 let chatCharset = snac.parameters.find(function(item) { return item.type === 0xd6; });
                                 let chatLang = snac.parameters.find(function(item) { return item.type === 0xd7; });
@@ -1647,6 +1754,7 @@ let aosServer = Net.createServer(function (socket) {
                                     }).ToBytes());
                                     return;
                                 } else {
+                                    //console.log("CHAT ROOM")
                                     let newRoom = _chatrooms.add({
                                         exchange: Util.Bit.BytesToUInt16(snac.exchange),
                                         cookie: Util.Bit.BytesToString(snac.cookie) === 'create' ? Util.Strings.GenerateChatCookie() : Util.Bit.BytesToString(snac.cookie),
@@ -1695,6 +1803,7 @@ let aosServer = Net.createServer(function (socket) {
                         }
                         break;
                     case 0x000e: // chat service
+                    //console.log("CHAHHAHAT", snac)
                         switch(snac.type) {
                             case 0x05: {
                                 let userInfoBlock = new Parameter({ type: 0x03, data: Util.Bit.UInt8ToBytes(session.parent.user.ScreenName.length).concat(
@@ -1745,7 +1854,7 @@ let aosServer = Net.createServer(function (socket) {
                         break;
                 }
                 // All other SNACs
-                console.log('AOS unhandled ( group', session.groupId, ')', snac)
+                //console.log('AOS unhandled ( group', session.groupId, ')', snac)
                 return;
             }
             case 4: { // disconnect
@@ -1755,3 +1864,119 @@ let aosServer = Net.createServer(function (socket) {
     }
 });
 aosServer.listen(_options.aosPort, _options.ip).on('listening', function () { console.log('AOS socket listening on', aosServer.address()); }).on('error', function (err) { console.log('AOS server socket error:', err); });
+
+
+// app.get('/test', (req, res) => {
+
+//     if ( _existingSession.sequence) {
+//         _existingSession.sequence + 1
+//     }
+//     let bufferBytes = [42,2,0,19,0,149,0,4,0,7,0,0,0,0,0,0,53,68,67,53,53,70,0,0,0,1,5,106,97,107,117,50,0,0,0,4,0,1,0,2,0,16,0,6,0,4,0,0,1,0,0,15,0,4,0,0,87,11,0,3,0,4,64,230,218,184,0,2,0,85,5,1,0,3,1,1,2,1,1,0,74,0,0,0,0,60,72,84,77,76,62,60,66,79,68,89,32,66,71,67,79,76,79,82,61,34,35,102,102,102,102,102,102,34,62,60,70,79,78,84,32,76,65,78,71,61,34,48,34,62,115,97,100,102,60,47,70,79,78,84,62,60,47,66,79,68,89,62,60,47,72,84,77,76,62]
+//     _existingSession.socket.write(Buffer.from(bufferBytes));
+
+//     res.send("ok")
+// })
+
+function createMessage(asciiString) {
+    // Required bytes before the ASCII part
+
+
+    const length = Buffer.byteLength(asciiString, 'utf8') + 4
+    const requiredBytes = [5, 1, 0, 3, 1, 1, 2, 1, 1, 0, length, 0, 0, 0, 0];
+    console.log(requiredBytes)
+    // Convert ASCII string to hexadecimal
+    const hexString = asciiString.split('').map(char => {
+        const hex = char.charCodeAt(0).toString(16);
+        return hex.padStart(2, '0'); // Ensure 2 characters for each byte
+    }).join('');
+
+    // Convert the hex string to an array of bytes
+    const hexBytes = [];
+    for (let i = 0; i < hexString.length; i += 2) {
+        hexBytes.push(parseInt(hexString.substr(i, 2), 16));
+    }
+
+    // Combine the required bytes with the hex bytes
+    const resultArray = requiredBytes.concat(hexBytes);
+
+    return resultArray;
+}
+app.get('/old/:text', (req, res) => {
+
+    const text = req.params.text    
+    const newMessage = createMessage(`<HTML><BODY BGCOLOR="#ffffff"><FONT LANG="0">${text}</FONT></BODY></HTML>`)
+
+
+    const newSnac = new SNAC({
+        foodGroup: 0x04,
+        type: 0x07,
+        flags: 0,
+        requestId: 0,
+        extensions: {
+            cookie: Util.Bit.BytesToString(_snac.cookie),
+            channel: Util.Bit.BytesToUInt16(_snac.channel),
+            formattedScreenName: _session.user.FormattedScreenName,
+            warningLevel: 0
+        },
+        parameters: [
+            Util.Bit.BytesToUInt16(_snac.channel) == 1 ? new Parameter({ type: 0x02, data: newMessage }) : Util.Bit.BytesToUInt16(_snac.channel) == 2 ? new Parameter({ type: 0x05, data: _snac.parameters.find(function(item) { return item.type === 0x05 }).data }): []
+        ]
+    }).ToBytes()
+
+    SendData(_existingSession, 0, 2, newSnac);
+
+    res.send('Hello World!')
+});
+
+app.post('/message', (req, res) => {
+
+    const json = req.body
+    const {text, name} = json
+    const newMessage = createMessage(text)
+
+
+    const newSnac = new SNAC({
+        foodGroup: 0x04,
+        type: 0x07,
+        flags: 0,
+        requestId: 0,
+        extensions: {
+            cookie: Util.Bit.BytesToString(_snac.cookie),
+            channel: Util.Bit.BytesToUInt16(_snac.channel),
+            formattedScreenName: name,
+            warningLevel: 0
+        },
+        parameters: [
+            Util.Bit.BytesToUInt16(_snac.channel) == 1 ? new Parameter({ type: 0x02, data: newMessage }) : Util.Bit.BytesToUInt16(_snac.channel) == 2 ? new Parameter({ type: 0x05, data: _snac.parameters.find(function(item) { return item.type === 0x05 }).data }): []
+        ]
+    }).ToBytes()
+
+    SendData(_existingSession, 0, 2, newSnac);
+
+    res.send('Hello World!')
+});
+
+function sentAIMMessage(user, message) {
+
+    const newMessage = createMessage(message)
+
+    const newSnac = new SNAC({
+        foodGroup: 0x04,
+        type: 0x07,
+        flags: 0,
+        requestId: 0,
+        extensions: {
+            cookie: Util.Bit.BytesToString(_snac.cookie),
+            channel: Util.Bit.BytesToUInt16(_snac.channel),
+            formattedScreenName: user,
+            warningLevel: 0
+        },
+        parameters: [
+            Util.Bit.BytesToUInt16(_snac.channel) == 1 ? new Parameter({ type: 0x02, data: newMessage }) : Util.Bit.BytesToUInt16(_snac.channel) == 2 ? new Parameter({ type: 0x05, data: _snac.parameters.find(function(item) { return item.type === 0x05 }).data }): []
+        ]
+    }).ToBytes()
+
+    SendData(_existingSession, 0, 2, newSnac);
+}
+
+app.listen(port, () => console.log(`Example app listening on port ${port}!`));

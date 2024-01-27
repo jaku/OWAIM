@@ -157,7 +157,9 @@ class User {
         }
     }
     static async getSingleUser(screenName) {
+        console.log(screenName)
         var b = await db.getUser(screenName);
+
         return b ? new User(b) : null;
     }
 }

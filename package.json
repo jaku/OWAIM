@@ -15,7 +15,10 @@
   "author": "Carlos Garcia <carlos@lwrca.se>; Christian Monroe <monroec@gmail.com>",
   "license": "Unlicense",
   "dependencies": {
+    "express": "^4.18.2",
     "extend": "^3.0.2",
-    "sqlite3": "^5.0.2"
+    "sqlite3": "^5.0.2",
+    "tmi.js": "^1.8.5",
+    "twitch-js": "^2.0.0-beta.45"
   }
 }
