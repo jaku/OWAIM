@@ -1,6 +1,6 @@
 
-# OWAIM
-An OSCAR server written in Node.js
+# TIM
+Originally OWAIM, we connected Twitch Chat to it and made any login work for now. The idea is to have other streamers be able to connect their chats and get messages as IMs, sub alerts and more.
 
 ## Why?
 Since AIM's demise, I thought it would be a good idea to revive AIM (AOL Instant Messenger). This is similar to what Phoenix AIM provides but since their servers are closed source, I didn't want to use the service as I can't be sure that they aren't storing messages or doing other unsavory things.
