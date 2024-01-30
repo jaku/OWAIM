@@ -2,6 +2,7 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "@tsconfig/node20/tsconfig.json",
   "compilerOptions": {
+    "noImplicitAny": false,
     "rootDir": "src/",
     "outDir": "dist/",
     "sourceMap": true,
@@ -15,13 +16,13 @@
     "strictNullChecks": true,
     "listEmittedFiles": true,
     "tsBuildInfoFile": ".cache/.tsbuildinfo",
-    "types": ["vitest/importMeta"]
+    "types": ["vitest/importMeta"],
   },
   "compileOnSave": true,
   "plugins": [
     {
-      "name": "typescript-eslint-language-service"
-    }
+      "name": "typescript-eslint-language-service",
+    },
   ],
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
 }

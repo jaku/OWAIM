@@ -20,9 +20,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "yarn@4.0.1",
+  "packageManager": "yarn@4.0.2",
   "scripts": {
-    "lint": "eslint --cache --cache-strategy metadata --cache-location ./.cache/eslint src/",
+    "lint": "eslint --cache --cache-strategy metadata --cache-location ./.cache/eslint",
     "format": "prettier --write --cache --cache-strategy metadata --cache-location ./.cache/prettier .",
     "clean": "rimraf dist/ .cache/",
     "build": "tsc -p tsconfig.json",
@@ -30,26 +30,32 @@
     "start": "node dist/index.js",
     "test": "vitest run"
   },
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "express": "^4.18.2",
+    "extend": "^3.0.2",
+    "sqlite3": "^5.0.2",
+    "tmi.js": "^1.8.5",
+    "twitch-js": "^2.0.0-beta.45"
+  },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.2",
     "@types/eslint": "^8.44.6",
+    "@types/express": "^4.17.21",
+    "@types/extend": "^3.0.4",
     "@types/node": "^20.8.10",
     "@types/prettier": "^3.0.0",
+    "@types/tmi.js": "^1.8.6",
     "@typescript-eslint/eslint-plugin": "^6.9.1",
     "@typescript-eslint/parser": "^6.9.1",
     "@yarnpkg/sdks": "^3.0.0",
     "eslint": "^8.52.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.1",
-    "express": "^4.18.2",
-    "extend": "^3.0.2",
     "prettier": "^3.0.3",
     "rimraf": "^5.0.5",
-    "sqlite3": "^5.0.2",
-    "tmi.js": "^1.8.5",
-    "twitch-js": "^2.0.0-beta.45",
-    "typescript": "^5.2.2",
+    "typescript": "^5.3.3",
     "typescript-eslint-language-service": "^5.0.5",
-    "vitest": "^0.34.6"
+    "vitest": "^1.2.2"
   }
 }
