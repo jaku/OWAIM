@@ -7,12 +7,12 @@ class SSI {
   classId: number = -1;
   attributes: number[] = [];
 
-  constructor(a: { name: string; groupId: number; itemId: number; classId: number; attributes: number[] }) {
-    this.name = a.name;
-    this.groupId = a.groupId;
-    this.itemId = a.itemId;
-    this.classId = a.classId;
-    this.attributes = a.attributes;
+  constructor(args: { name: string; groupId: number; itemId: number; classId: number; attributes: number[] }) {
+    this.name = args.name;
+    this.groupId = args.groupId;
+    this.itemId = args.itemId;
+    this.classId = args.classId;
+    this.attributes = args.attributes;
   }
   ToBuffer() {
     return Util.Bit.BytesToBuffer([
@@ -25,17 +25,17 @@ class SSI {
       ...this.attributes,
     ]);
   }
-  static GetSSI(bytes) {
-    var _buffer = [...bytes];
-    var out = [];
-    while (_buffer.length > 0) {
-      let length = Util.Bit.BufferToUInt16(_buffer.splice(0, 2));
-      let name = Util.Bit.BytesToBuffer(_buffer.splice(0, length)).toString('ascii');
-      let groupId = Util.Bit.BufferToUInt16(_buffer.splice(0, 2));
-      let itemId = Util.Bit.BufferToUInt16(_buffer.splice(0, 2));
-      let classId = Util.Bit.BufferToUInt16(_buffer.splice(0, 2));
-      let attributesLength = Util.Bit.BufferToUInt16(_buffer.splice(0, 2));
-      let attributes = _buffer.splice(0, attributesLength);
+  static GetSSI(bytes: number[]) {
+    const buffer = Util.Bit.BytesToBuffer(bytes);
+    const out: SSI[] = [];
+    while (buffer.length > 0) {
+      const length = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
+      const name = Util.Bit.BufferToString(buffer.subarray(2, length)).toString();
+      const groupId = Util.Bit.BufferToUInt16(buffer.subarray(2 + length, 2));
+      const itemId = Util.Bit.BufferToUInt16(buffer.subarray(4 + length, 2));
+      const classId = Util.Bit.BufferToUInt16(buffer.subarray(6 + length, 2));
+      const attributesLength = Util.Bit.BufferToUInt16(buffer.subarray(8 + length, 2));
+      const attributes = Util.Bit.BufferToBytes(buffer.subarray(10, attributesLength));
       out.push(
         new SSI({
           name: name,

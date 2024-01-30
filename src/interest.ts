@@ -35,6 +35,7 @@ class Interest {
         })
       );
     }
+    return out;
   }
 }
 
