@@ -10,6 +10,7 @@ export type SessionServices = {
 };
 
 export type Session = {
+  chatCookie: string;
   parent?: Session;
   chat?: Chat;
   buffer: Buffer;

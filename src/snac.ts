@@ -42,6 +42,7 @@ export const enum Types {
   TEN = 0x0a,
   ELEVEN = 0x0b,
   TWELVE = 0x0c,
+  THIRTEEN = 0x0d,
   FOURTEEN = 0x0e,
   FIFTEEN = 0x0f,
   SEVENTEEN = 0x11,

@@ -45,7 +45,7 @@ class User {
   }
   async getFeedbagTimestamp() {
     const c = await db.getFeedbagTimestamp(this.ID);
-    return c ? c : Util.Dates.GetTimestamp();
+    return c ? c : new Date(Util.Dates.GetTimestamp());
   }
   async updateStatus(
     session: Session,

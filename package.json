@@ -27,7 +27,7 @@
     "clean": "rimraf dist/ .cache/",
     "build": "tsc -p tsconfig.json",
     "build:watch": "tsc -w -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "node dist/server.js",
     "test": "vitest run"
   },
   "dependencies": {

@@ -408,31 +408,36 @@ class DB {
       });
     });
   }
-  addFeedbagItem(id, name, groupId, itemId, classId, attributes: Buffer) {
+  addFeedbagItem(
+    id: number,
+    name: string,
+    groupId: number,
+    itemId: number,
+    classId: number,
+    attributes: Buffer
+  ): Promise<BuddyList> {
     return new Promise((resolve) => {
-      db?.serialize(() => {
-        db
-          ?.run(
-            'INSERT INTO Feedbag (ID, Name, GroupID, BuddyID, ClassID, Attributes) VALUES (?, ?, ?, ?, ?, ?)',
-            id,
-            name,
-            groupId,
-            itemId,
-            classId,
-            attributes.length === 0 ? '' : attributes
-          )
-          .get('SELECT * FROM Feedbag WHERE PID = last_insert_rowid()', (err, row: BuddyList) => {
-            resolve({
-              PID: row.PID,
-              ID: row.ID,
-              Name: row.Name,
-              GroupID: row.GroupID,
-              BuddyID: row.BuddyID,
-              ClassID: row.ClassID,
-              Attributes: row.Attributes,
-            });
+      return db
+        ?.run(
+          'INSERT INTO Feedbag (ID, Name, GroupID, BuddyID, ClassID, Attributes) VALUES (?, ?, ?, ?, ?, ?)',
+          id,
+          name,
+          groupId,
+          itemId,
+          classId,
+          attributes.length === 0 ? '' : attributes
+        )
+        .get<BuddyList>('SELECT * FROM Feedbag WHERE PID = last_insert_rowid()', (err, row) => {
+          resolve({
+            PID: row.PID,
+            ID: row.ID,
+            Name: row.Name,
+            GroupID: row.GroupID,
+            BuddyID: row.BuddyID,
+            ClassID: row.ClassID,
+            Attributes: row.Attributes,
           });
-      });
+        });
     });
   }
   updateFeedbagItem(id, name, groupId, itemId, classId, attributes: Buffer) {

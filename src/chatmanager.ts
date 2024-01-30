@@ -2,14 +2,14 @@ import { Session } from './sessionmanager.js';
 import User from './user.js';
 
 export type Chat = {
-  exchange: null;
-  cookie: null;
+  exchange: number;
+  cookie: string;
   instance: number;
   detailLevel: number;
-  creator: null;
-  name: null;
-  charset: null;
-  lang: null;
+  creator: string;
+  name: string;
+  charset: string;
+  lang: string;
   users: User[];
   sessions: Session[];
 };
@@ -20,21 +20,21 @@ class ChatManager {
   constructor() {
     this.#collection = [];
   }
-  add(item: Chat) {
+  add(item: Chat): Chat {
     const b = {
       ...structuredClone(item),
-      ...{
-        exchange: null,
-        cookie: null,
+      ...({
+        exchange: -1,
+        cookie: '',
         instance: 0,
         detailLevel: 1,
-        creator: null,
-        name: null,
-        charset: null,
-        lang: null,
+        creator: '',
+        name: '',
+        charset: '',
+        lang: '',
         users: [],
         sessions: [],
-      },
+      } as Chat),
     };
     this.#collection.push(b);
     return b;

@@ -24,7 +24,7 @@ const opts = {
     username: 'justinfan12345', // Use a justinfan username for read-only mode
   },
   channels: [
-    'jaku', // Replace this with the name of the channel you want to join
+    'piratesoftware', // Replace this with the name of the channel you want to join
   ],
 };
 
@@ -47,27 +47,24 @@ function onMessageHandler(target: string, context: tmi.ChatUserstate, msg: strin
 
   // Remove whitespace from chat message
   const commandName = msg.trim();
-  if (ready) sentAIMMessage(context['display-name'], commandName);
-  // Log the username and message to the console
-  console.log(`${context['display-name']}: ${commandName}`);
+  if (ready && context['display-name']) {
+    // Log the username and message to the console
+    console.log(`${context['display-name']}: ${commandName}`);
+
+    sentAIMMessage(context['display-name'], commandName);
+  }
 }
 
 // Called every time the bot connects to Twitch chat
-function onConnectedHandler(addr, port) {
+function onConnectedHandler(addr: string, port: number) {
   console.log(`* Connected to ${addr}:${port}`);
 }
 
-let _existingSession;
-let _snac;
-let _session;
-let _options: Options;
+let _existingSession: Session;
+let _snac: SNAC;
+let _session: Session;
 
-try {
-  const json = JSON.parse(process.argv.slice(2).join('').replace(/'/g, '"')) as Options;
-  _options = new Options(json);
-} catch (err) {
-  throw new Error('Could not parse options argument.');
-}
+const _options = new Options(process.argv);
 
 const _sessions = new SessionManager();
 
@@ -100,6 +97,7 @@ const authServer = Net.createServer((socket) => {
     cookie: '',
     services: [],
     ticket: '',
+    chatCookie: '',
   });
 
   session.socket.on('error', (err) => {
@@ -567,6 +565,7 @@ authServer
     console.log('Auth server socket error:', err);
   });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function overwriteSnacData(snac: SNAC, hexString: string) {
   // Ensure hexString is defined and a string
   if (hexString.length === 0) {
@@ -597,6 +596,7 @@ const bosServer = Net.createServer((socket) => {
     cookie: '',
     services: [],
     ticket: '',
+    chatCookie: '',
   });
   session.socket.on('error', (err) => {
     console.log('<!> BOS server socket error:', err);
@@ -1780,40 +1780,42 @@ const bosServer = Net.createServer((socket) => {
               }
               case Types.FIVE: {
                 // feedbag request if modified.
-                const date = Util.Bit.BytesToUInt32(snac.date.getTime());
-                const count = Util.Bit.BufferToUInt16(snac.count);
-                const buddyList = await session.user?.getFeedbagBuddyList();
-                const timeStamp = await session.user?.getFeedbagTimestamp();
-                if (timeStamp != date && buddyList?.length != count) {
-                  SendData(
-                    session,
-                    snac.requestId,
-                    2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
-                        foodGroup: FoodGroups.NINETEEN,
-                        type: Types.SIX,
-                        flags: 0,
-                        requestId: snac.requestId,
-                      }).ToBuffer()
-                    ).concat(
-                      Util.Bit.UInt8ToBytes(0),
-                      Util.Bit.UInt16ToBytes(buddyList?.length ?? 0),
-                      ...(buddyList?.map((item) =>
-                        Util.Bit.BufferToBytes(
-                          new SSI({
-                            name: item.Name,
-                            groupId: item.GroupID,
-                            itemId: item.BuddyID,
-                            classId: item.ClassID,
-                            attributes: Util.Bit.BufferToBytes(item.Attributes),
-                          }).ToBuffer()
-                        )
-                      ) ?? []),
-                      Util.Bit.UInt32ToBytes(timeStamp),
-                      Util.Bit.UInt32ToBytes(date + 2588)
-                    )
-                  );
+                const date: Date = new Date(snac.date.getTime());
+                const count = snac.count;
+                if (session.user) {
+                  const buddyList = await session.user.getFeedbagBuddyList();
+                  const timeStamp: Date = await session.user.getFeedbagTimestamp();
+                  if (timeStamp != date && buddyList?.length != count) {
+                    SendData(
+                      session,
+                      snac.requestId,
+                      2,
+                      Util.Bit.BufferToBytes(
+                        new SNAC({
+                          foodGroup: FoodGroups.NINETEEN,
+                          type: Types.SIX,
+                          flags: 0,
+                          requestId: snac.requestId,
+                        }).ToBuffer()
+                      ).concat(
+                        Util.Bit.UInt8ToBytes(0),
+                        Util.Bit.UInt16ToBytes(buddyList?.length ?? 0),
+                        ...(buddyList?.map((item) =>
+                          Util.Bit.BufferToBytes(
+                            new SSI({
+                              name: item.Name,
+                              groupId: item.GroupID,
+                              itemId: item.BuddyID,
+                              classId: item.ClassID,
+                              attributes: Util.Bit.BufferToBytes(item.Attributes),
+                            }).ToBuffer()
+                          )
+                        ) ?? []),
+                        Util.Bit.UInt32ToBytes(timeStamp.getTime()),
+                        Util.Bit.UInt32ToBytes(date.getTime() + 2588)
+                      )
+                    );
+                  }
                 } else {
                   SendData(
                     session,
@@ -1826,7 +1828,7 @@ const bosServer = Net.createServer((socket) => {
                         flags: 0,
                         requestId: snac.requestId,
                       }).ToBuffer()
-                    ).concat(snac.date, snac.count)
+                    ).concat(snac.date.getTime(), snac.count)
                   );
                 }
                 return;
@@ -1837,8 +1839,8 @@ const bosServer = Net.createServer((socket) => {
               }
               case Types.EIGHT: {
                 // feedbag add request.
-                var _buffer = [];
-                if (snac.items) {
+                const buffer: Buffer[] = [];
+                if (session.user && snac.items) {
                   for (const item of snac.items) {
                     const b = await session.user.addFeedbagItem(
                       item.name,
@@ -1847,7 +1849,7 @@ const bosServer = Net.createServer((socket) => {
                       item.classId,
                       item.attributes
                     );
-                    _buffer.push(b ? Util.Bit.BufferBytes([0x00, 0x00]) : Util.Bit.BufferBytes([0x00, 0x0a]));
+                    buffer.push(b ? Util.Bit.BytesToBuffer([0x00, 0x00]) : Util.Bit.BytesToBuffer([0x00, 0x0a]));
                   }
                 }
                 SendData(
@@ -1861,14 +1863,14 @@ const bosServer = Net.createServer((socket) => {
                       flags: 0x8000,
                       requestId: snac.requestId,
                     }).ToBuffer()
-                  ).concat(_buffer.flat())
+                  ).concat(...buffer.map((b) => Util.Bit.BufferToBytes(b)))
                 );
                 return;
               }
               case Types.NINE: {
                 // feedbag update request.
-                var _buffer = [];
-                if (snac.items) {
+                const buffer: Buffer[] = [];
+                if (session.user && snac.items) {
                   for (const item of snac.items) {
                     const b = await session.user.updateFeedbagItem(
                       item.name,
@@ -1877,7 +1879,7 @@ const bosServer = Net.createServer((socket) => {
                       item.classId,
                       item.attributes
                     );
-                    _buffer.push(b ? Util.Bit.BufferBytes([0x00, 0x00]) : Util.Bit.BufferBytes([0x00, 0x0a]));
+                    buffer.push(b ? Util.Bit.BytesToBuffer([0x00, 0x00]) : Util.Bit.BytesToBuffer([0x00, 0x0a]));
                   }
                 }
                 SendData(
@@ -1891,14 +1893,14 @@ const bosServer = Net.createServer((socket) => {
                       flags: 0x8000,
                       requestId: snac.requestId,
                     }).ToBuffer()
-                  ).concat(_buffer.flat())
+                  ).concat(...buffer.map((b) => Util.Bit.BufferToBytes(b)))
                 );
                 return;
               }
               case Types.TEN: {
                 // feedbag delete request.
-                var _buffer = [];
-                if (snac.items) {
+                const buffer: Buffer[] = [];
+                if (session.user && snac.items) {
                   for (const item of snac.items) {
                     const b = await session.user.deleteFeedbagItem(
                       item.name,
@@ -1907,7 +1909,7 @@ const bosServer = Net.createServer((socket) => {
                       item.classId,
                       item.attributes
                     );
-                    _buffer.push(b ? Util.Bit.BufferBytes([0x00, 0x00]) : Util.Bit.BufferBytes([0x00, 0x0a]));
+                    buffer.push(b ? Util.Bit.BytesToBuffer([0x00, 0x00]) : Util.Bit.BytesToBuffer([0x00, 0x0a]));
                   }
                 }
                 SendData(
@@ -1921,13 +1923,15 @@ const bosServer = Net.createServer((socket) => {
                       flags: 0x8000,
                       requestId: snac.requestId,
                     }).ToBuffer()
-                  ).concat(_buffer.flat())
+                  ).concat(...buffer.map((b) => Util.Bit.BufferToBytes(b)))
                 );
                 return;
               }
               case Types.EIGHTEEN: {
-                await session.user.updateFeedbagMeta();
-                await session.user.updateStatus(session, _sessions, SendData);
+                if (session.user) {
+                  await session.user.updateFeedbagMeta();
+                  await session.user.updateStatus(session, _sessions, SendData);
+                }
               }
             }
             break;
@@ -1974,6 +1978,7 @@ const aosServer = Net.createServer((socket) => {
     cookie: '',
     services: [],
     ticket: '',
+    chatCookie: '',
   };
   session.socket.on('error', (err) => {
     console.log('<!> AOS server socket error:', err);
@@ -1994,30 +1999,32 @@ const aosServer = Net.createServer((socket) => {
           item,
           0,
           2,
-          new SNAC({
-            foodGroup: FoodGroups.FOURTEEN,
-            type: SNACTypes.FOUR,
-            flags: 0,
-            requestId: 0,
-            parameters: [
-              new Parameter({
-                type: ParameterTypes.ONE,
-                data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
-              }),
-              new Parameter({
-                type: ParameterTypes.FIFTEEN,
-                data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
-              }),
-              new Parameter({
-                type: ParameterTypes.THREE,
-                data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
-              }),
-            ],
-            extensions: {
-              formattedScreenName: session.parent.user?.FormattedScreenName,
-              warningLevel: 0,
-            },
-          }).ToBuffer()
+          Util.Bit.BufferToBytes(
+            new SNAC({
+              foodGroup: FoodGroups.FOURTEEN,
+              type: SNACTypes.FOUR,
+              flags: 0,
+              requestId: 0,
+              parameters: [
+                new Parameter({
+                  type: ParameterTypes.ONE,
+                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                }),
+                new Parameter({
+                  type: ParameterTypes.FIFTEEN,
+                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                }),
+                new Parameter({
+                  type: ParameterTypes.THREE,
+                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                }),
+              ],
+              extensions: {
+                formattedScreenName: session.parent?.user?.FormattedScreenName,
+                warningLevel: 0,
+              },
+            }).ToBuffer()
+          )
         );
       });
     }
@@ -2027,9 +2034,8 @@ const aosServer = Net.createServer((socket) => {
     }
     // remove from sessions.
     _sessions.remove(session);
-    delete session;
   });
-  session.socket.on('data', async (data) => {
+  session.socket.on('data', (data) => {
     session.buffer = { ...session.buffer, ...data };
 
     let endProcStream = false;
@@ -2043,7 +2049,7 @@ const aosServer = Net.createServer((socket) => {
       }
       const size = Util.Bit.BufferToUInt16(session.buffer.slice(4, 6));
       if (session.buffer.length >= 6 + size) {
-        await ProcessRequest(
+        ProcessRequest(
           session,
           session.buffer.subarray(0, 6),
           session.buffer.subarray(6, 6 + size),
@@ -2056,7 +2062,7 @@ const aosServer = Net.createServer((socket) => {
   });
   SendData(session, 0, 1, Util.Constants._FLAP_VERSION);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async function ProcessRequest(session: Session, header, data, _bytes: Buffer) {
+  function ProcessRequest(session: Session, header: Buffer, data: Buffer, _bytes: Buffer) {
     // get FLAP header.
     const flap = new FLAP(header);
     switch (flap.channel) {
@@ -2065,13 +2071,13 @@ const aosServer = Net.createServer((socket) => {
         if (data.length > 4) {
           const parameters = Parameter.GetParameters(0, 0, data.slice(4));
           const cookie = parameters.find((item) => {
-            return item.type === 0x06;
+            return item.type === ParameterTypes.SIX;
           });
           if (cookie) {
-            const existingSession = _sessions.item({ serviceCookie: Util.Bit.BytesToString(cookie.data) });
+            const existingSession = _sessions.item({ serviceCookie: Util.Bit.BufferToString(cookie.data as Buffer) });
             if (existingSession) {
               const serviceSession = existingSession.services.find((item) => {
-                return item.cookie === Util.Bit.BytesToString(cookie.data);
+                return item.cookie === Util.Bit.BufferToString(cookie.data as Buffer);
               });
               if (serviceSession) {
                 session.parent = {
@@ -2082,15 +2088,17 @@ const aosServer = Net.createServer((socket) => {
                   session,
                   0,
                   2,
-                  new SNAC({
-                    foodGroup: 0x0001,
-                    type: 0x0003,
-                    flags: 0,
-                    requestId: 0,
-                    extensions: {
-                      families: [1, 13, 14, 15, 16],
-                    },
-                  }).ToBuffer()
+                  Util.Bit.BufferToBytes(
+                    new SNAC({
+                      foodGroup: FoodGroups.ONE,
+                      type: Types.THREE,
+                      flags: 0,
+                      requestId: 0,
+                      extensions: {
+                        families: [1, 13, 14, 15, 16],
+                      },
+                    }).ToBuffer()
+                  )
                 );
                 return;
               }
@@ -2112,513 +2120,737 @@ const aosServer = Net.createServer((socket) => {
         const snac = new SNAC(data);
         //console.log('AOS', snac);
         switch (snac.foodGroup) {
-          case 0x0001: // generic service controls
+          case FoodGroups.ONE: // generic service controls
             switch (snac.type) {
-              case 0x02: // client service ready
+              case Types.TWO: // client service ready
                 SendData(
                   session,
                   snac.requestId,
                   2,
-                  new SNAC({
-                    foodGroup: 0x000d,
-                    type: 0x0009,
-                    flags: 0,
-                    requestId: snac.requestId,
-                  })
-                    .ToBuffer()
-                    .concat([
-                      0x00, 0x02, 0x00, 0x01, 0x11, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x07, 0xd0, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x04, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x04, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x05, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x06, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x07, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x08, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x09, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0b, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0c, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0d, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0e, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0f, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x10, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x14, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8,
-                    ])
+                  Util.Bit.BufferToBytes(
+                    new SNAC({
+                      foodGroup: 0x000d,
+                      type: 0x0009,
+                      flags: 0,
+                      requestId: snac.requestId,
+                    }).ToBuffer()
+                  ).concat([
+                    // FIXME: Figure out what this is.
+                    0x00, 0x02, 0x00, 0x01, 0x11, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x07, 0xd0, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x04, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x04, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x05, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x06, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x07, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x08, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x09, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0b, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0c, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0d, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0e, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0f, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x10, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x14, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8,
+                  ])
                 );
                 if (session.groupId === 0x0e) {
-                  //console.log("SFSDFSDFS")
                   session.chatCookie = session.cookie.split('.')[0];
-                  const chats = _chatrooms.findNonExistantSession(session.parent.user, session.chatCookie);
-                  if (chats && chats.length > 0) {
-                    const chat = chats[0];
-                    session.chat = chat;
-                    chat.sessions.forEach((item) => {
-                      SendData(
-                        session,
-                        0,
-                        2,
-                        new SNAC({
-                          foodGroup: 0x000e,
-                          type: 0x0003,
-                          flags: 0,
-                          requestId: 0,
-                          parameters: [
-                            new Parameter({ type: 0x01, data: Util.Bit.UInt32ToBytes(0x0000) }),
-                            new Parameter({ type: 0x0f, data: Util.Bit.UInt32ToBytes(0x0000) }),
-                            new Parameter({ type: 0x03, data: Util.Bit.UInt32ToBytes(0x0000) }),
-                          ],
-                          extensions: {
-                            formattedScreenName: item.parent.user.FormattedScreenName,
-                            warningLevel: 0,
-                          },
-                        }).ToBuffer()
-                      );
-                    });
-                    chat.sessions.push(session);
-                    chat.sessions.forEach((item) => {
-                      SendData(
-                        item,
-                        0,
-                        2,
-                        new SNAC({
-                          foodGroup: 0x000e,
-                          type: 0x0003,
-                          flags: 0,
-                          requestId: 0,
-                          parameters: [
-                            new Parameter({ type: 0x01, data: Util.Bit.UInt32ToBytes(0x0000) }),
-                            new Parameter({ type: 0x0f, data: Util.Bit.UInt32ToBytes(0x0000) }),
-                            new Parameter({ type: 0x03, data: Util.Bit.UInt32ToBytes(0x0000) }),
-                          ],
-                          extensions: {
-                            formattedScreenName: session.parent.user.FormattedScreenName,
-                            warningLevel: 0,
-                          },
-                        }).ToBuffer()
-                      );
-                    });
+                  if (session.parent?.user) {
+                    const chats = _chatrooms.findNonExistantSession(session.parent.user, session.chatCookie);
+                    if (chats && chats.length > 0) {
+                      const chat = chats[0];
+                      session.chat = chat;
+                      chat.sessions.forEach((item) => {
+                        SendData(
+                          session,
+                          0,
+                          2,
+                          Util.Bit.BufferToBytes(
+                            new SNAC({
+                              foodGroup: 0x000e,
+                              type: 0x0003,
+                              flags: 0,
+                              requestId: 0,
+                              parameters: [
+                                new Parameter({
+                                  type: 0x01,
+                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                }),
+                                new Parameter({
+                                  type: 0x0f,
+                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                }),
+                                new Parameter({
+                                  type: 0x03,
+                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                }),
+                              ],
+                              extensions: {
+                                formattedScreenName: item.parent?.user?.FormattedScreenName,
+                                warningLevel: 0,
+                              },
+                            }).ToBuffer()
+                          )
+                        );
+                      });
+                      chat.sessions.push(session);
+                      chat.sessions.forEach((item) => {
+                        SendData(
+                          item,
+                          0,
+                          2,
+                          Util.Bit.BufferToBytes(
+                            new SNAC({
+                              foodGroup: 0x000e,
+                              type: 0x0003,
+                              flags: 0,
+                              requestId: 0,
+                              parameters: [
+                                new Parameter({
+                                  type: 0x01,
+                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                }),
+                                new Parameter({
+                                  type: 0x0f,
+                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                }),
+                                new Parameter({
+                                  type: 0x03,
+                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                }),
+                              ],
+                              extensions: {
+                                formattedScreenName: session.parent?.user?.FormattedScreenName,
+                                warningLevel: 0,
+                              },
+                            }).ToBuffer()
+                          )
+                        );
+                      });
+                    }
                   }
                 }
                 return;
-              case 0x06: // rate limits request.
+              case Types.SIX: // rate limits request.
                 SendData(
                   session,
                   snac.requestId,
                   2,
-                  new SNAC({
-                    foodGroup: 0x0001,
-                    type: 0x0007,
-                    flags: 0,
-                    requestId: snac.requestId,
-                  })
-                    .ToBuffer()
-                    .concat(Util.Bit.UInt16ToBytes(0))
+                  Util.Bit.BufferToBytes(
+                    new SNAC({
+                      foodGroup: 0x0001,
+                      type: 0x0007,
+                      flags: 0,
+                      requestId: snac.requestId,
+                    }).ToBuffer()
+                  ).concat(Util.Bit.UInt16ToBytes(0))
                 );
                 return;
-              case 0x17: // service host version request.
+              case Types.TWENTYTHREE: // service host version request.
                 SendData(
                   session,
                   0,
                   2,
-                  new SNAC({
-                    foodGroup: 0x0001,
-                    type: 0x0018,
-                    flags: 0,
-                    requestId: 0,
-                    extensions: {
-                      families: [
-                        new Family({ type: 1, version: 4 }),
-                        new Family({ type: 2, version: 1 }),
-                        new Family({ type: 3, version: 1 }),
-                        new Family({ type: 4, version: 1 }),
-                        new Family({ type: 6, version: 1 }),
-                        new Family({ type: 8, version: 1 }),
-                        new Family({ type: 9, version: 1 }),
-                        new Family({ type: 10, version: 1 }),
-                        new Family({ type: 11, version: 1 }),
-                        new Family({ type: 12, version: 1 }),
-                        new Family({ type: 14, version: 1 }),
-                        new Family({ type: 13, version: 1 }),
-                        new Family({ type: 19, version: 5 }),
-                        new Family({ type: 21, version: 2 }),
-                        new Family({ type: 34, version: 1 }),
-                        new Family({ type: 34, version: 1 }),
-                        new Family({ type: 37, version: 1 }),
-                      ],
-                    },
-                  }).ToBuffer()
+                  Util.Bit.BufferToBytes(
+                    new SNAC({
+                      foodGroup: 0x0001,
+                      type: 0x0018,
+                      flags: 0,
+                      requestId: 0,
+                      extensions: {
+                        families: [
+                          new Family({ type: 1, version: 4 }),
+                          new Family({ type: 2, version: 1 }),
+                          new Family({ type: 3, version: 1 }),
+                          new Family({ type: 4, version: 1 }),
+                          new Family({ type: 6, version: 1 }),
+                          new Family({ type: 8, version: 1 }),
+                          new Family({ type: 9, version: 1 }),
+                          new Family({ type: 10, version: 1 }),
+                          new Family({ type: 11, version: 1 }),
+                          new Family({ type: 12, version: 1 }),
+                          new Family({ type: 14, version: 1 }),
+                          new Family({ type: 13, version: 1 }),
+                          new Family({ type: 19, version: 5 }),
+                          new Family({ type: 21, version: 2 }),
+                          new Family({ type: 34, version: 1 }),
+                          new Family({ type: 34, version: 1 }),
+                          new Family({ type: 37, version: 1 }),
+                        ],
+                      },
+                    }).ToBuffer()
+                  )
                 );
                 return;
             }
             break;
-          case 0x000d: // chat navigation service
-            //console.log("CHAT ROOM 2", snac)
-
+          case FoodGroups.THIRTEEN: // chat navigation service
             switch (snac.type) {
-              case 0x02: {
+              case Types.TWO: {
                 // chatnav rights request.
                 SendData(
                   session,
                   snac.requestId,
                   2,
-                  new SNAC({
-                    foodGroup: 0x000d,
-                    type: 0x0009,
-                    flags: 0,
-                    requestId: snac.requestId,
-                  })
-                    .ToBuffer()
-                    .concat([
-                      0x00, 0x02, 0x00, 0x01, 0x11, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x07, 0xd0, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x04, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x04, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x05, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x06, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x07, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x08, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x09, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0b, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0c, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0d, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0e, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0f, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x10, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x14, 0x00, 0x0a, 0x00, 0x03, 0x00,
-                      0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
-                      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
-                      0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
-                      0xda, 0x00, 0x02, 0x00, 0xe8,
-                    ])
+                  Util.Bit.BufferToBytes(
+                    new SNAC({
+                      foodGroup: 0x000d,
+                      type: 0x0009,
+                      flags: 0,
+                      requestId: snac.requestId,
+                    }).ToBuffer()
+                  ).concat([
+                    // FIXME: Figure out what this is.
+                    0x00, 0x02, 0x00, 0x01, 0x11, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x07, 0xd0, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x04, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x04, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x05, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x06, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x02, 0x00,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x27, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x07, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x08, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x09, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0b, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0c, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0d, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0e, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x0f, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x10, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x32, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x14, 0x00, 0x0a, 0x00, 0x03, 0x00,
+                    0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x40, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x44, 0x00, 0xca,
+                    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
+                    0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
+                    0xda, 0x00, 0x02, 0x00, 0xe8,
+                  ])
                 );
                 return;
               }
-              case 0x04: {
-                //console.log("EXIST ROOM")
-
-                const existingChat = _chatrooms.item({ cookie: Util.Bit.BytesToString(snac.cookie) });
+              case Types.FOUR: {
+                const existingChat = _chatrooms.item({ cookie: snac.cookie });
+                if (!session.parent?.user) {
+                  return;
+                }
                 if (existingChat) {
-                  existingChat.users.push(session.parent.user.ScreenName);
+                  existingChat.users.push(session.parent.user);
                   SendData(
                     session,
                     snac.requestId,
                     2,
-                    new SNAC({
-                      foodGroup: 0x0d,
-                      type: 0x09,
-                      flags: 0,
-                      requestId: snac.requestId,
-                      parameters: [
-                        new Parameter({ type: 0x02, data: Util.Bit.UInt8ToBytes(10) }),
-                        new Parameter({
-                          type: 0x04,
-                          data: Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
-                            Util.Bit.UInt8ToBytes(existingChat.cookie.length),
-                            Util.Bit.BufferBytes(existingChat.cookie),
-                            Util.Bit.UInt16ToBytes(0),
-                            Util.Bit.UInt8ToBytes(2),
-                            Util.Bit.UInt16ToBytes(10),
-                            [
-                              new Parameter({ type: 0xd0, data: Util.Bit.UInt16ToBytes(3) }).ToBuffer(),
-                              new Parameter({ type: 0xd1, data: Util.Bit.UInt16ToBytes(1024) }).ToBuffer(),
-                              new Parameter({ type: 0xd2, data: Util.Bit.UInt16ToBytes(66) }).ToBuffer(),
-                              new Parameter({ type: 0xd3, data: Util.Bit.BufferBytes(existingChat.name) }).ToBuffer(),
-                              new Parameter({ type: 0xd5, data: Util.Bit.UInt8ToBytes(1) }).ToBuffer(),
-                              new Parameter({
-                                type: 0xcb,
-                                data: Util.Bit.BufferBytes(existingChat.creator),
-                              }).ToBuffer(),
-                              new Parameter({ type: 0x03, data: Util.Bit.UInt8ToBytes(10) }).ToBuffer(),
-                              new Parameter({ type: 0x04, data: Util.Bit.UInt8ToBytes(20) }).ToBuffer(),
-                              new Parameter({ type: 0x02, data: Util.Bit.UInt16ToBytes(0) }).ToBuffer(),
-                              new Parameter({
-                                type: 0x05,
-                                data: Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
-                                  Util.Bit.UInt8ToBytes(existingChat.cookie.length),
-                                  Util.Bit.BufferBytes(existingChat.cookie),
-                                  Util.Bit.UInt16ToBytes(0)
-                                ),
-                              }).ToBuffer(),
-                            ].flat()
-                          ),
-                        }),
-                      ],
-                    }).ToBuffer()
+                    Util.Bit.BufferToBytes(
+                      new SNAC({
+                        foodGroup: FoodGroups.THIRTEEN,
+                        type: Types.NINE,
+                        flags: 0,
+                        requestId: snac.requestId,
+                        parameters: [
+                          new Parameter({
+                            type: ParameterTypes.TWO,
+                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                          }),
+                          new Parameter({
+                            type: 0x04,
+                            data: Util.Bit.BytesToBuffer(
+                              Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
+                                Util.Bit.UInt8ToBytes(existingChat.cookie.length),
+                                Util.Bit.StringToBytes(existingChat.cookie),
+                                Util.Bit.UInt16ToBytes(0),
+                                Util.Bit.UInt8ToBytes(2),
+                                Util.Bit.UInt16ToBytes(10),
+                                [
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDEIGHT,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(3)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDNINE,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(1024)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTEN,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(66)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDELEVEN,
+                                      data: Util.Bit.StringToBuffer(existingChat.name),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTHIRTEEN,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(1)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTHREE,
+                                      data: Util.Bit.StringToBuffer(existingChat.creator),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.THREE,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.FOUR,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(20)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWO,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.FIVE,
+                                      data: Util.Bit.BytesToBuffer(
+                                        Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
+                                          Util.Bit.UInt8ToBytes(existingChat.cookie.length),
+                                          Util.Bit.StringToBytes(existingChat.cookie),
+                                          Util.Bit.UInt16ToBytes(0)
+                                        )
+                                      ),
+                                    }).ToBuffer()
+                                  ),
+                                ].flat()
+                              )
+                            ),
+                          }),
+                        ],
+                      }).ToBuffer()
+                    )
                   );
                   return;
                 }
                 return;
               }
-              case 0x08: {
+              case Types.EIGHT: {
                 // create/join chat.
-                //console.log("CHAT JOIN")
-
                 const chatRoomName = snac.parameters.find((item) => {
-                  return item.type === 0xd3;
+                  return item.type === ParameterTypes.TWOHUNDREDELEVEN;
                 });
                 const chatCharset = snac.parameters.find((item) => {
-                  return item.type === 0xd6;
+                  return item.type === ParameterTypes.TWOHUNDREDFOURTEEN;
                 });
                 const chatLang = snac.parameters.find((item) => {
-                  return item.type === 0xd7;
+                  return item.type === ParameterTypes.TWOHUNDREDFIFTEEN;
                 });
-                const existingChat = _chatrooms.item({ name: Util.Bit.BytesToString(chatRoomName.data) });
+                const existingChat = _chatrooms.item({
+                  name: Util.Bit.BufferToString(chatRoomName?.data as Buffer),
+                });
+                if (!session?.parent?.user || !chatRoomName || !chatCharset || !chatLang) {
+                  return;
+                }
                 if (existingChat) {
-                  existingChat.users.push(session.parent.user.ScreenName);
+                  existingChat.users.push(session.parent.user);
                   SendData(
                     session,
                     snac.requestId,
                     2,
-                    new SNAC({
-                      foodGroup: 0x0d,
-                      type: 0x09,
-                      flags: 0,
-                      requestId: snac.requestId,
-                      parameters: [
-                        new Parameter({ type: 0x02, data: Util.Bit.UInt8ToBytes(10) }),
-                        new Parameter({
-                          type: 0x04,
-                          data: Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
-                            Util.Bit.UInt8ToBytes(existingChat.cookie.length),
-                            Util.Bit.BufferBytes(existingChat.cookie),
-                            Util.Bit.UInt16ToBytes(0),
-                            Util.Bit.UInt8ToBytes(2),
-                            Util.Bit.UInt16ToBytes(10),
-                            [
-                              new Parameter({ type: 0xd0, data: Util.Bit.UInt16ToBytes(3) }).ToBuffer(),
-                              new Parameter({ type: 0xd1, data: Util.Bit.UInt16ToBytes(1024) }).ToBuffer(),
-                              new Parameter({ type: 0xd2, data: Util.Bit.UInt16ToBytes(66) }).ToBuffer(),
-                              new Parameter({ type: 0xd3, data: Util.Bit.BufferBytes(existingChat.name) }).ToBuffer(),
-                              new Parameter({ type: 0xd5, data: Util.Bit.UInt8ToBytes(1) }).ToBuffer(),
-                              new Parameter({
-                                type: 0xcb,
-                                data: Util.Bit.BufferBytes(existingChat.creator),
-                              }).ToBuffer(),
-                              new Parameter({ type: 0x03, data: Util.Bit.UInt8ToBytes(10) }).ToBuffer(),
-                              new Parameter({ type: 0x04, data: Util.Bit.UInt8ToBytes(20) }).ToBuffer(),
-                              new Parameter({ type: 0x02, data: Util.Bit.UInt16ToBytes(0) }).ToBuffer(),
-                              new Parameter({
-                                type: 0x05,
-                                data: Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
-                                  Util.Bit.UInt8ToBytes(existingChat.cookie.length),
-                                  Util.Bit.BufferBytes(existingChat.cookie),
-                                  Util.Bit.UInt16ToBytes(0)
-                                ),
-                              }).ToBuffer(),
-                            ].flat()
-                          ),
-                        }),
-                      ],
-                    }).ToBuffer()
+                    Util.Bit.BufferToBytes(
+                      new SNAC({
+                        foodGroup: 0x0d,
+                        type: 0x09,
+                        flags: 0,
+                        requestId: snac.requestId,
+                        parameters: [
+                          new Parameter({
+                            type: ParameterTypes.TWO,
+                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                          }),
+                          new Parameter({
+                            type: 0x04,
+                            data: Util.Bit.BytesToBuffer(
+                              Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
+                                Util.Bit.UInt8ToBytes(existingChat.cookie.length),
+                                Util.Bit.StringToBytes(existingChat.cookie),
+                                Util.Bit.UInt16ToBytes(0),
+                                Util.Bit.UInt8ToBytes(2),
+                                Util.Bit.UInt16ToBytes(10),
+                                [
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDEIGHT,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(3)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDNINE,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(1024)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTEN,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(66)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDELEVEN,
+                                      data: Util.Bit.StringToBuffer(existingChat.name),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTHIRTEEN,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(1)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTHREE,
+                                      data: Util.Bit.StringToBuffer(existingChat.creator),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.THREE,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.FOUR,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(20)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWO,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.FIVE,
+                                      data: Util.Bit.BytesToBuffer(
+                                        Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
+                                          Util.Bit.UInt8ToBytes(existingChat.cookie.length),
+                                          Util.Bit.StringToBytes(existingChat.cookie),
+                                          Util.Bit.UInt16ToBytes(0)
+                                        )
+                                      ),
+                                    }).ToBuffer()
+                                  ),
+                                ].flat()
+                              )
+                            ),
+                          }),
+                        ],
+                      }).ToBuffer()
+                    )
                   );
                   return;
                 } else {
                   //console.log("CHAT ROOM")
                   const newRoom = _chatrooms.add({
-                    exchange: Util.Bit.BufferToUInt16(snac.exchange),
-                    cookie:
-                      Util.Bit.BytesToString(snac.cookie) === 'create'
-                        ? Util.Strings.GenerateChatCookie()
-                        : Util.Bit.BytesToString(snac.cookie),
+                    exchange: snac.exchange,
+                    cookie: snac.cookie === 'create' ? Util.Strings.GenerateChatCookie() : snac.cookie,
                     detailLevel: snac.detailLevel,
                     creator: session.parent.user.ScreenName,
-                    name: Util.Bit.BytesToString(chatRoomName.data),
-                    charset: Util.Bit.BytesToString(chatCharset.data),
-                    lang: Util.Bit.BytesToString(chatLang.data),
+                    name: Util.Bit.BufferToString(chatRoomName.data as Buffer),
+                    charset: Util.Bit.BufferToString(chatCharset.data as Buffer),
+                    lang: Util.Bit.BufferToString(chatLang.data as Buffer),
+                    instance: 0,
+                    users: [],
+                    sessions: [],
                   });
-                  newRoom.users.push(session.parent.user.ScreenName);
+                  newRoom.users.push(session.parent.user);
                   SendData(
                     session,
                     snac.requestId,
                     2,
-                    new SNAC({
-                      foodGroup: 0x0d,
-                      type: 0x09,
-                      flags: 0,
-                      requestId: snac.requestId,
-                      parameters: [
-                        new Parameter({ type: 0x02, data: Util.Bit.UInt8ToBytes(10) }),
-                        new Parameter({
-                          type: 0x04,
-                          data: Util.Bit.UInt16ToBytes(newRoom.exchange).concat(
-                            Util.Bit.UInt8ToBytes(newRoom.cookie.length),
-                            Util.Bit.BufferBytes(newRoom.cookie),
-                            Util.Bit.UInt16ToBytes(0),
-                            Util.Bit.UInt8ToBytes(2),
-                            Util.Bit.UInt16ToBytes(10),
-                            [
-                              new Parameter({ type: 0xd0, data: Util.Bit.UInt16ToBytes(3) }).ToBuffer(),
-                              new Parameter({ type: 0xd1, data: Util.Bit.UInt16ToBytes(1024) }).ToBuffer(),
-                              new Parameter({ type: 0xd2, data: Util.Bit.UInt16ToBytes(66) }).ToBuffer(),
-                              new Parameter({ type: 0xd3, data: Util.Bit.BufferBytes(newRoom.name) }).ToBuffer(),
-                              new Parameter({ type: 0xd5, data: Util.Bit.UInt8ToBytes(1) }).ToBuffer(),
-                              new Parameter({ type: 0xcb, data: Util.Bit.BufferBytes(newRoom.creator) }).ToBuffer(),
-                              new Parameter({ type: 0x03, data: Util.Bit.UInt8ToBytes(10) }).ToBuffer(),
-                              new Parameter({ type: 0x04, data: Util.Bit.UInt8ToBytes(20) }).ToBuffer(),
-                              new Parameter({ type: 0x02, data: Util.Bit.UInt16ToBytes(0) }).ToBuffer(),
-                              new Parameter({
-                                type: 0x05,
-                                data: Util.Bit.UInt16ToBytes(newRoom.exchange).concat(
-                                  Util.Bit.UInt8ToBytes(newRoom.cookie.length),
-                                  Util.Bit.BufferBytes(newRoom.cookie),
-                                  Util.Bit.UInt16ToBytes(0)
-                                ),
-                              }).ToBuffer(),
-                            ].flat()
-                          ),
-                        }),
-                      ],
-                    }).ToBuffer()
+                    Util.Bit.BufferToBytes(
+                      new SNAC({
+                        foodGroup: 0x0d,
+                        type: 0x09,
+                        flags: 0,
+                        requestId: snac.requestId,
+                        parameters: [
+                          new Parameter({
+                            type: ParameterTypes.TWO,
+                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                          }),
+                          new Parameter({
+                            type: ParameterTypes.FOUR,
+                            data: Util.Bit.BytesToBuffer(
+                              Util.Bit.UInt16ToBytes(newRoom.exchange).concat(
+                                Util.Bit.UInt8ToBytes(newRoom.cookie.length),
+                                Util.Bit.StringToBytes(newRoom.cookie),
+                                Util.Bit.UInt16ToBytes(0),
+                                Util.Bit.UInt8ToBytes(2),
+                                Util.Bit.UInt16ToBytes(10),
+                                [
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDEIGHT,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(3)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDNINE,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(1024)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTEN,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(66)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDELEVEN,
+                                      data: Util.Bit.StringToBuffer(newRoom.name),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTHIRTEEN,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(1)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWOHUNDREDTHREE,
+                                      data: Util.Bit.StringToBuffer(newRoom.creator),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.THREE,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.FOUR,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(20)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.TWO,
+                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                                    }).ToBuffer()
+                                  ),
+                                  Util.Bit.BufferToBytes(
+                                    new Parameter({
+                                      type: ParameterTypes.FIVE,
+                                      data: Util.Bit.BytesToBuffer(
+                                        Util.Bit.UInt16ToBytes(newRoom.exchange).concat(
+                                          Util.Bit.UInt8ToBytes(newRoom.cookie.length),
+                                          Util.Bit.StringToBytes(newRoom.cookie),
+                                          Util.Bit.UInt16ToBytes(0)
+                                        )
+                                      ),
+                                    }).ToBuffer()
+                                  ),
+                                ].flat()
+                              )
+                            ),
+                          }),
+                        ],
+                      }).ToBuffer()
+                    )
                   );
                   return;
                 }
               }
             }
             break;
-          case 0x000e: // chat service
-            //console.log("CHAHHAHAT", snac)
+          case FoodGroups.FOURTEEN:
+            // chat service
             switch (snac.type) {
-              case 0x05: {
+              case Types.FIVE: {
+                if (!session.parent?.user) {
+                  return;
+                }
                 const userInfoBlock = new Parameter({
-                  type: 0x03,
-                  data: Util.Bit.UInt8ToBytes(session.parent.user.ScreenName.length).concat(
-                    Util.Bit.BufferBytes(session.parent.user.ScreenName),
-                    Util.Bit.UInt16ToBytes(0),
-                    Util.Bit.UInt16ToBytes(3),
-                    new Parameter({ type: 0x01, data: Util.Bit.UInt16ToBytes(0) }).ToBuffer(),
-                    new Parameter({ type: 0x0f, data: Util.Bit.UInt32ToBytes(0) }).ToBuffer(),
-                    new Parameter({ type: 0x03, data: Util.Bit.UInt32ToBytes(0) }).ToBuffer()
+                  type: ParameterTypes.THREE,
+                  data: Util.Bit.BytesToBuffer(
+                    Util.Bit.UInt8ToBytes(session.parent.user.ScreenName.length).concat(
+                      Util.Bit.StringToBytes(session.parent.user.ScreenName),
+                      Util.Bit.UInt16ToBytes(0),
+                      Util.Bit.UInt16ToBytes(3),
+                      Util.Bit.BufferToBytes(
+                        new Parameter({
+                          type: ParameterTypes.ONE,
+                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                        }).ToBuffer()
+                      ),
+                      Util.Bit.BufferToBytes(
+                        new Parameter({
+                          type: ParameterTypes.FIFTEEN,
+                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0)),
+                        }).ToBuffer()
+                      ),
+                      Util.Bit.BufferToBytes(
+                        new Parameter({
+                          type: ParameterTypes.THREE,
+                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0)),
+                        }).ToBuffer()
+                      )
+                    )
                   ),
                 });
                 const parameterMessageInformation = snac.parameters.find((item) => {
-                  return item.type === 0x05;
+                  return item.type === ParameterTypes.FIVE;
                 });
+                if (!parameterMessageInformation) {
+                  return;
+                }
                 // reflection ??
                 SendData(
                   session,
                   snac.requestId,
                   2,
-                  new SNAC({
-                    foodGroup: 0x0e,
-                    type: 0x06,
-                    flags: 0,
-                    requestId: snac.requestId,
-                    extensions: {
-                      cookie: snac.cookie,
-                      channel: snac.channel,
-                    },
-                    parameters: [
-                      userInfoBlock,
-                      new Parameter({ type: 0x01, data: Util.Bit.UInt16ToBytes(32) }),
-                      parameterMessageInformation,
-                    ],
-                  }).ToBuffer()
+                  Util.Bit.BufferToBytes(
+                    new SNAC({
+                      foodGroup: 0x0e,
+                      type: 0x06,
+                      flags: 0,
+                      requestId: snac.requestId,
+                      extensions: {
+                        cookie: snac.cookie,
+                        channel: snac.channel,
+                      },
+                      parameters: [
+                        userInfoBlock,
+                        new Parameter({
+                          type: ParameterTypes.ONE,
+                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(32)),
+                        }),
+                        parameterMessageInformation,
+                      ],
+                    }).ToBuffer()
+                  )
                 );
+                if (!session.chat?.sessions) {
+                  return;
+                }
                 const userSessions = session.chat.sessions.filter((item) => {
-                  return item.parent.user.ScreenName !== session.parent.user.ScreenName;
+                  return item.parent?.user?.ScreenName !== session.parent?.user?.ScreenName;
                 });
                 userSessions.forEach((userSession) => {
                   SendData(
                     userSession,
                     0,
                     2,
-                    new SNAC({
-                      foodGroup: 0x0e,
-                      type: 0x06,
-                      flags: 0,
-                      requestId: 0,
-                      extensions: {
-                        cookie: snac.cookie,
-                        channel: snac.channel,
-                      },
-                      parameters: [userInfoBlock, parameterMessageInformation],
-                    }).ToBuffer()
+                    Util.Bit.BufferToBytes(
+                      new SNAC({
+                        foodGroup: 0x0e,
+                        type: 0x06,
+                        flags: 0,
+                        requestId: 0,
+                        extensions: {
+                          cookie: snac.cookie,
+                          channel: snac.channel,
+                        },
+                        parameters: [userInfoBlock, parameterMessageInformation],
+                      }).ToBuffer()
+                    )
                   );
                 });
                 return;
@@ -2657,7 +2889,7 @@ aosServer
 //     res.send("ok")
 // })
 
-function createMessage(asciiString) {
+function createMessage(asciiString: string) {
   // Required bytes before the ASCII part
 
   const length = Buffer.byteLength(asciiString, 'utf8') + 4;
@@ -2673,9 +2905,9 @@ function createMessage(asciiString) {
     .join('');
 
   // Convert the hex string to an array of bytes
-  const hexBytes = [];
+  const hexBytes: number[] = [];
   for (let i = 0; i < hexString.length; i += 2) {
-    hexBytes.push(parseInt(hexString.substr(i, 2), 16));
+    hexBytes.push(parseInt(hexString.substring(i, 2), 16));
   }
 
   // Combine the required bytes with the hex bytes
@@ -2693,32 +2925,39 @@ app.get('/old/:text', (req, res) => {
     flags: 0,
     requestId: 0,
     extensions: {
-      cookie: Util.Bit.BytesToString(_snac.cookie),
-      channel: Util.Bit.BufferToUInt16(_snac.channel),
-      formattedScreenName: _session.user.FormattedScreenName,
+      cookie: _snac.cookie,
+      channel: _snac.channel,
+      formattedScreenName: _session.user?.FormattedScreenName,
       warningLevel: 0,
     },
     parameters: [
-      Util.Bit.BufferToUInt16(_snac.channel) == 1
-        ? new Parameter({ type: 0x02, data: newMessage })
-        : Util.Bit.BufferToUInt16(_snac.channel) == 2
+      _snac.channel == 1
+        ? new Parameter({
+            type: ParameterTypes.TWO,
+            data: Util.Bit.BytesToBuffer(newMessage),
+          })
+        : _snac.channel == 2
           ? new Parameter({
-              type: 0x05,
-              data: _snac.parameters.find((item) => {
-                return item.type === 0x05;
-              }).data,
+              type: ParameterTypes.FIVE,
+              data:
+                _snac.parameters.find((item) => {
+                  return item.type === ParameterTypes.FIVE;
+                })?.data ?? Util.Bit.BytesToBuffer([]),
             })
-          : [],
+          : ({} as Parameter),
     ],
   }).ToBuffer();
 
-  SendData(_existingSession, 0, 2, newSnac);
+  SendData(_existingSession, 0, 2, Util.Bit.BufferToBytes(newSnac));
 
   res.send('Hello World!');
 });
 
 app.post('/message', (req, res) => {
-  const json = req.body;
+  if (!req.body || typeof req.body !== 'object') {
+    return;
+  }
+  const json: { text: string; name: string } = req.body as { text: string; name: string };
   const { text, name } = json;
   const newMessage = createMessage(text);
 
@@ -2728,31 +2967,35 @@ app.post('/message', (req, res) => {
     flags: 0,
     requestId: 0,
     extensions: {
-      cookie: Util.Bit.BytesToString(_snac.cookie),
-      channel: Util.Bit.BufferToUInt16(_snac.channel),
+      cookie: _snac.cookie,
+      channel: _snac.channel,
       formattedScreenName: name,
       warningLevel: 0,
     },
     parameters: [
-      Util.Bit.BufferToUInt16(_snac.channel) == 1
-        ? new Parameter({ type: 0x02, data: newMessage })
-        : Util.Bit.BufferToUInt16(_snac.channel) == 2
+      _snac.channel == 1
+        ? new Parameter({
+            type: ParameterTypes.TWO,
+            data: Util.Bit.BytesToBuffer(newMessage),
+          })
+        : _snac.channel == 2
           ? new Parameter({
-              type: 0x05,
-              data: _snac.parameters.find((item) => {
-                return item.type === 0x05;
-              }).data,
+              type: ParameterTypes.FIVE,
+              data:
+                _snac.parameters.find((item) => {
+                  return item.type === ParameterTypes.FIVE;
+                })?.data ?? Util.Bit.BytesToBuffer([]),
             })
-          : [],
+          : ({} as Parameter),
     ],
   }).ToBuffer();
 
-  SendData(_existingSession, 0, 2, newSnac);
+  SendData(_existingSession, 0, 2, Util.Bit.BufferToBytes(newSnac));
 
   res.send('Hello World!');
 });
 
-function sentAIMMessage(user, message) {
+function sentAIMMessage(screenName: string, message: string) {
   const newMessage = createMessage(message);
 
   const newSnac = new SNAC({
@@ -2761,26 +3004,30 @@ function sentAIMMessage(user, message) {
     flags: 0,
     requestId: 0,
     extensions: {
-      cookie: Util.Bit.BytesToString(_snac.cookie),
-      channel: Util.Bit.BufferToUInt16(_snac.channel),
-      formattedScreenName: user,
+      cookie: _snac.cookie,
+      channel: _snac.channel,
+      formattedScreenName: screenName,
       warningLevel: 0,
     },
     parameters: [
-      Util.Bit.BufferToUInt16(_snac.channel) == 1
-        ? new Parameter({ type: 0x02, data: newMessage })
-        : Util.Bit.BufferToUInt16(_snac.channel) == 2
+      _snac.channel == 1
+        ? new Parameter({
+            type: ParameterTypes.TWO,
+            data: Util.Bit.BytesToBuffer(newMessage),
+          })
+        : _snac.channel == 2
           ? new Parameter({
-              type: 0x05,
-              data: _snac.parameters.find((item) => {
-                return item.type === 0x05;
-              }).data,
+              type: ParameterTypes.FIVE,
+              data:
+                _snac.parameters.find((item) => {
+                  return item.type === ParameterTypes.FIVE;
+                })?.data ?? Util.Bit.BytesToBuffer([]),
             })
-          : [],
+          : ({} as Parameter),
     ],
   }).ToBuffer();
 
-  SendData(_existingSession, 0, 2, newSnac);
+  SendData(_existingSession, 0, 2, Util.Bit.BufferToBytes(newSnac));
 }
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`));
