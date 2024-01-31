@@ -165,10 +165,10 @@ const Strings = {
     return Bit.BufferToBytes(
       Crypto.MD5(
         Bit.ToBuffer([
-          ...Bit.BufferToBytes(Buffer.from(ticket)),
+          ...Bit.BufferToBytes(Bit.ToBuffer(ticket)),
           ...Bit.BufferToBytes(Crypto.MD5(password)),
           // FIXME: Check whether _AIM_MD5_STRING can be pulled from the packet.
-          ...Bit.BufferToBytes(Buffer.from(Constants._AIM_MD5_STRING)),
+          ...Bit.BufferToBytes(Bit.ToBuffer(Constants._AIM_MD5_STRING)),
         ])
       )
     );

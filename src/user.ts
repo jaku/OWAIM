@@ -32,9 +32,9 @@ class User {
   AwayMessageEncoding: string = '';
   AwayMessage: string = '';
   ProfileEncoding: string = '';
-  Profile: Buffer = Buffer.from([]);
-  Certs: Buffer = Buffer.from([]);
-  Capabilities: Buffer = Buffer.from([]);
+  Profile: Buffer = Util.Bit.ToBuffer();
+  Certs: Buffer = Util.Bit.ToBuffer();
+  Capabilities: Buffer = Util.Bit.ToBuffer();
 
   constructor(a: User) {
     return structuredClone(a);

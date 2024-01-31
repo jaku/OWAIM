@@ -35,7 +35,7 @@ class Fragment {
           id: fragId,
           version: fragVersion,
           length: length,
-          data: Buffer.from(payload),
+          data: payload,
         })
       );
       buffer = buffer.subarray(length);
