@@ -241,30 +241,34 @@ class DB {
         .run('INSERT INTO RateLimitMapping (RateClass, SNACFamily, SNACSubType) VALUES (4, 2, 11);');
     });
   }
-  getUser(screenName: string): Promise<User> {
+  getUser(screenName: string): Promise<User | null> {
     return new Promise((resolve) => {
       db?.get('SELECT * FROM Memberships WHERE ScreenName = ?', screenName, (err, row: User) => {
-        return resolve({
-          ID: row.ID,
-          ScreenName: Util.Strings.TrimData(row.ScreenName),
-          FormattedScreenName: row.FormattedScreenName,
-          Password: row.Password,
-          TemporaryEvil: row.TemporaryEvil,
-          PermanentEvil: row.PermanentEvil,
-          EmailAddress: row.EmailAddress,
-          Class: row.Internal ? 0x12 : 0x10,
-          Confirmed: row.Confirmed,
-          Internal: row.Internal,
-          Suspended: row.Suspended,
-          Deleted: row.Deleted,
-          Notes: row.Notes,
-          LastSignonDate: row.LastSignonDate,
-          CreationDate: row.CreationDate,
-          LoggedIPAddresses: row.LoggedIPAddresses,
-          RegisteredIPAddress: row.RegisteredIPAddress,
-          FeedbagTimestamp: row.FeedbagTimestamp,
-          FeedbagItems: row.FeedbagItems,
-        } as User);
+        return resolve(
+          !row
+            ? null
+            : ({
+                ID: row.ID,
+                ScreenName: Util.Strings.TrimData(row.ScreenName),
+                FormattedScreenName: row.FormattedScreenName,
+                Password: row.Password,
+                TemporaryEvil: row.TemporaryEvil,
+                PermanentEvil: row.PermanentEvil,
+                EmailAddress: row.EmailAddress,
+                Class: row.Internal ? 0x12 : 0x10,
+                Confirmed: row.Confirmed,
+                Internal: row.Internal,
+                Suspended: row.Suspended,
+                Deleted: row.Deleted,
+                Notes: row.Notes,
+                LastSignonDate: row.LastSignonDate,
+                CreationDate: row.CreationDate,
+                LoggedIPAddresses: row.LoggedIPAddresses,
+                RegisteredIPAddress: row.RegisteredIPAddress,
+                FeedbagTimestamp: row.FeedbagTimestamp,
+                FeedbagItems: row.FeedbagItems,
+              } as User)
+        );
       });
     });
   }

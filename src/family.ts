@@ -4,9 +4,9 @@ class Family {
   type: number;
   version: number;
 
-  constructor(a: { type: number; version: number }) {
+  constructor(a: { type: number; version?: number }) {
     this.type = a.type;
-    this.version = a.version;
+    this.version = a.version ?? -1;
   }
   ToBuffer() {
     return Util.Bit.BytesToBuffer([
@@ -15,7 +15,7 @@ class Family {
     ]);
   }
   static GetFamilies(bytes: number[]) {
-    const buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.BytesToBuffer(bytes);
     const out: Family[] = [];
     while (buffer.length >= 4) {
       const type = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
@@ -26,6 +26,7 @@ class Family {
           version: version,
         })
       );
+      buffer = buffer.subarray(4);
     }
     return out;
   }

@@ -75,7 +75,7 @@ class User {
             2,
             Util.Bit.BufferToBytes(
               new SNAC({
-                foodGroup: FoodGroups.THREE,
+                foodGroup: FoodGroups.BUDDY,
                 type: Types.ELEVEN,
                 flags: 0,
                 requestId: 0,
@@ -112,7 +112,7 @@ class User {
             2,
             Util.Bit.BufferToBytes(
               new SNAC({
-                foodGroup: FoodGroups.THREE,
+                foodGroup: FoodGroups.BUDDY,
                 type: Types.TWELVE,
                 flags: 0,
                 requestId: 0,
@@ -140,7 +140,7 @@ class User {
             2,
             Util.Bit.BufferToBytes(
               new SNAC({
-                foodGroup: FoodGroups.THREE,
+                foodGroup: FoodGroups.BUDDY,
                 type: Types.TWELVE,
                 flags: 0,
                 requestId: 0,
@@ -182,7 +182,7 @@ class User {
             2,
             Util.Bit.BufferToBytes(
               new SNAC({
-                foodGroup: FoodGroups.THREE,
+                foodGroup: FoodGroups.BUDDY,
                 type: 0x000c,
                 flags: 0,
                 requestId: 0,

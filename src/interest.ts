@@ -19,7 +19,7 @@ class Interest {
     ];
   }
   static GetInterests(bytes: number[]) {
-    const buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.BytesToBuffer(bytes);
     const out: Interest[] = [];
     while (buffer.length > 4) {
       const type = Util.Bit.BufferToUInt8(buffer.subarray(0, 1));
@@ -34,6 +34,7 @@ class Interest {
           name: name,
         })
       );
+      buffer = buffer.subarray(4 + length);
     }
     return out;
   }

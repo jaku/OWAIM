@@ -30,6 +30,7 @@ class SessionManager {
   }
 
   add(item: Session) {
+    /*
     const b: Session = {
       ...{
         user: undefined,
@@ -40,6 +41,8 @@ class SessionManager {
       },
       ...structuredClone(item),
     };
+    */
+    const b = item;
     this.#collection.push(b);
     return b;
   }

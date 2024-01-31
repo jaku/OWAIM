@@ -26,7 +26,7 @@ class SSI {
     ]);
   }
   static GetSSI(bytes: number[]) {
-    const buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.BytesToBuffer(bytes);
     const out: SSI[] = [];
     while (buffer.length > 0) {
       const length = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
@@ -45,6 +45,7 @@ class SSI {
           attributes: attributes,
         })
       );
+      buffer = buffer.subarray(10 + attributesLength);
     }
     return out;
   }

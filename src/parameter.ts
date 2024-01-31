@@ -60,18 +60,21 @@ class Parameter {
     ]);
   }
 
-  static GetParameters(snacFoodGroup: SNACFoodGroups, snacType: SNACTypes, bytes: Buffer) {
+  static GetParameters(snacFoodGroup: SNACFoodGroups, snacType: SNACTypes, bytes: number[]) {
+    let buffer = Util.Bit.BytesToBuffer(bytes);
     const out: Parameter[] = [];
-    while (bytes.length >= 4) {
-      const type: ParameterTypes = Util.Bit.BufferToUInt16(bytes.subarray(0, 2));
-      const length = Util.Bit.BufferToUInt16(bytes.subarray(2, 4));
-      const payload = bytes.subarray(4, length);
-      if (snacFoodGroup === SNACFoodGroups.FOUR && snacType === SNACTypes.SIX && type === ParameterTypes.TWO) {
-        const fragments = Fragment.GetFragments(payload);
+    while (buffer.length >= 4) {
+      const type: ParameterTypes = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
+      const length = Util.Bit.BufferToUInt16(buffer.subarray(2, 4));
+      const payload = buffer.subarray(4, 4 + length);
+      if (snacFoodGroup === SNACFoodGroups.ICBM && snacType === SNACTypes.SIX && type === ParameterTypes.TWO) {
+        const fragments = Fragment.GetFragments(Util.Bit.BufferToBytes(payload));
         out.push(new Parameter({ type: type, data: fragments }));
       } else {
         out.push(new Parameter({ type: type, data: payload }));
       }
+
+      buffer = buffer.subarray(4 + length);
     }
     return out;
   }
