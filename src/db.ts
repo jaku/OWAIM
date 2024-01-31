@@ -302,7 +302,7 @@ class DB {
                   0,
                   0,
                   1,
-                  Util.Bit.BytesToBuffer([0x00, 0xc8, 0x00, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03])
+                  Util.Bit.ToBuffer([0x00, 0xc8, 0x00, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03])
                 )
                 // Buddy preferences.
                 .run(
@@ -312,7 +312,7 @@ class DB {
                   0,
                   1,
                   5,
-                  Util.Bit.BytesToBuffer([
+                  Util.Bit.ToBuffer([
                     0x00, 0xc9, 0x00, 0x04, 0x00, 0x61, 0xe7, 0xff, 0x00, 0xd6, 0x00, 0x04, 0x00, 0x77, 0xff, 0xff,
                   ])
                 )
@@ -324,7 +324,7 @@ class DB {
                   1,
                   0,
                   1,
-                  Util.Bit.BytesToBuffer([0x00, 0xc8, 0x00, 0x0])
+                  Util.Bit.ToBuffer([0x00, 0xc8, 0x00, 0x0])
                 )
                 // Family group.
                 .run(
@@ -334,7 +334,7 @@ class DB {
                   2,
                   0,
                   1,
-                  Util.Bit.BytesToBuffer([0x00, 0xc8, 0x00, 0x0])
+                  Util.Bit.ToBuffer([0x00, 0xc8, 0x00, 0x0])
                 )
                 // Co-Workers group.
                 .run(
@@ -344,7 +344,7 @@ class DB {
                   3,
                   0,
                   1,
-                  Util.Bit.BytesToBuffer([0x00, 0xc8, 0x00, 0x0])
+                  Util.Bit.ToBuffer([0x00, 0xc8, 0x00, 0x0])
                 )
                 // Update user.
                 .run('UPDATE Memberships SET [FeedbagTimestamp] = ?, [FeedbagItems] = 5 WHERE [ID] = ?', timestamp, id)

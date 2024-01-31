@@ -9,13 +9,13 @@ class Family {
     this.version = a.version ?? -1;
   }
   ToBuffer() {
-    return Util.Bit.BytesToBuffer([
+    return Util.Bit.ToBuffer([
       ...Util.Bit.UInt16ToBytes(this.type),
       ...(this.version ? Util.Bit.UInt16ToBytes(this.version) : []),
     ]);
   }
   static GetFamilies(bytes: number[]) {
-    let buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.ToBuffer(bytes);
     const out: Family[] = [];
     while (buffer.length >= 4) {
       const type = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));

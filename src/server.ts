@@ -28,7 +28,8 @@ const opts = {
   ],
 };
 
-let ready = false;
+let acceptTwitchMessages = false;
+
 // Create a client with the configuration
 const client = new tmi.client(opts);
 
@@ -47,7 +48,7 @@ function onMessageHandler(target: string, context: tmi.ChatUserstate, msg: strin
 
   // Remove whitespace from chat message
   const commandName = msg.trim();
-  if (ready && context['display-name']) {
+  if (acceptTwitchMessages && context['display-name']) {
     // Log the username and message to the console
     console.log(`${context['display-name']}: ${commandName}`);
 
@@ -91,7 +92,7 @@ const authServer = Net.createServer((socket) => {
     socket: socket,
     sequence: 0,
     groupId: -1,
-    buffer: Util.Bit.BytesToBuffer([]),
+    buffer: Util.Bit.ToBuffer(''),
     parent: undefined,
     chat: undefined,
     user: undefined,
@@ -162,11 +163,11 @@ const authServer = Net.createServer((socket) => {
       // expect: 0x00 0x17 0x00 0x06
       // method: auth key request
       if (snac.foodGroup === FoodGroups.BUCP && snac.type === SNACTypes.SIX) {
-        const screenName = snac.parameters.find((item: { type: ParameterTypes }) => {
+        const screenName = snac.parameters?.find((item: { type: ParameterTypes }) => {
           return item.type === ParameterTypes.ONE;
         });
         if (screenName) {
-          const user = await User.getSingleUser(Util.Bit.BufferToString(screenName.data as Buffer));
+          const user = await User.getSingleUser(Util.Bit.ToString(screenName.data as Buffer));
           if (!user) {
             // user not found.
             SendData(
@@ -186,11 +187,11 @@ const authServer = Net.createServer((socket) => {
                     }),
                     new Parameter({
                       type: ParameterTypes.FOUR,
-                      data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/unregistered'),
+                      data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/unregistered'),
                     }),
                     new Parameter({
                       type: ParameterTypes.EIGHT,
-                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(4)),
+                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(4)),
                     }),
                   ],
                 }).ToBuffer()
@@ -198,7 +199,7 @@ const authServer = Net.createServer((socket) => {
             );
             return;
           }
-          // if (user.ScreenName !== Util.Bit.BytesToString(screenName.data)) {
+          // if (user.ScreenName !== Util.Bit.ToString(screenName.data)) {
           //     // user not the same.
           ////     console.log("HMM")
           //     SendData(session, 0, 2, new SNAC({
@@ -233,11 +234,11 @@ const authServer = Net.createServer((socket) => {
                     }),
                     new Parameter({
                       type: ParameterTypes.FOUR,
-                      data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/deleted'),
+                      data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/deleted'),
                     }),
                     new Parameter({
                       type: ParameterTypes.EIGHT,
-                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(8)),
+                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(8)),
                     }),
                   ],
                 }).ToBuffer()
@@ -264,11 +265,11 @@ const authServer = Net.createServer((socket) => {
                     }),
                     new Parameter({
                       type: ParameterTypes.FOUR,
-                      data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/suspended'),
+                      data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/suspended'),
                     }),
                     new Parameter({
                       type: ParameterTypes.EIGHT,
-                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(17)),
+                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(17)),
                     }),
                   ],
                 }).ToBuffer()
@@ -309,15 +310,15 @@ const authServer = Net.createServer((socket) => {
               parameters: [
                 new Parameter({
                   type: ParameterTypes.ONE,
-                  data: Util.Bit.StringToBuffer(screenName ?? ''),
+                  data: Util.Bit.ToBuffer(screenName ?? ''),
                 }),
                 new Parameter({
                   type: ParameterTypes.FOUR,
-                  data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/unregistered'),
+                  data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/unregistered'),
                 }),
                 new Parameter({
                   type: ParameterTypes.EIGHT,
-                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(7)),
+                  data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(7)),
                 }),
               ],
             }).ToBuffer()
@@ -329,14 +330,14 @@ const authServer = Net.createServer((socket) => {
       // expect: 0x00 0x17 0x00 0x02
       // method: auth
       if (snac.foodGroup === FoodGroups.BUCP && snac.type === SNACTypes.TWO) {
-        const screenName = snac.parameters.find((item) => {
+        const screenName = snac.parameters?.find((item) => {
           return item.type === ParameterTypes.ONE;
         });
-        const roastedPassword = snac.parameters.find((item) => {
+        const roastedPassword = snac.parameters?.find((item) => {
           return item.type === ParameterTypes.THIRTYSEVEN;
         });
         if (screenName) {
-          const user = await User.getSingleUser(Util.Bit.BufferToString(screenName.data as Buffer));
+          const user = await User.getSingleUser(Util.Bit.ToString(screenName.data as Buffer));
           if (!user) {
             // user not found.
             SendData(
@@ -356,11 +357,11 @@ const authServer = Net.createServer((socket) => {
                     }),
                     new Parameter({
                       type: ParameterTypes.FOUR,
-                      data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/unregistered'),
+                      data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/unregistered'),
                     }),
                     new Parameter({
                       type: ParameterTypes.EIGHT,
-                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(4)),
+                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(4)),
                     }),
                   ],
                 }).ToBuffer()
@@ -368,7 +369,7 @@ const authServer = Net.createServer((socket) => {
             );
             return;
           }
-          // if (user.ScreenName !== Util.Bit.BytesToString(screenName.data)) {
+          // if (user.ScreenName !== Util.Bit.ToString(screenName.data)) {
           //     // user not the same.
           ////     console.log("BNOE#")
           //     SendData(session, 0, 2, new SNAC({
@@ -403,11 +404,11 @@ const authServer = Net.createServer((socket) => {
                     }),
                     new Parameter({
                       type: ParameterTypes.FOUR,
-                      data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/deleted'),
+                      data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/deleted'),
                     }),
                     new Parameter({
                       type: ParameterTypes.EIGHT,
-                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(8)),
+                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(8)),
                     }),
                   ],
                 }).ToBuffer()
@@ -434,11 +435,11 @@ const authServer = Net.createServer((socket) => {
                     }),
                     new Parameter({
                       type: ParameterTypes.FOUR,
-                      data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/suspended'),
+                      data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/suspended'),
                     }),
                     new Parameter({
                       type: ParameterTypes.EIGHT,
-                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(17)),
+                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(17)),
                     }),
                   ],
                 }).ToBuffer()
@@ -469,23 +470,23 @@ const authServer = Net.createServer((socket) => {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
-                      data: Util.Bit.StringToBuffer(user.ScreenName),
+                      data: Util.Bit.ToBuffer(user.ScreenName),
                     }),
                     new Parameter({
                       type: ParameterTypes.FIVE,
-                      data: Util.Bit.StringToBuffer([_options.ip, _options.bosPort].join(':')),
+                      data: Util.Bit.ToBuffer([_options.ip, _options.bosPort].join(':')),
                     }),
                     new Parameter({
                       type: ParameterTypes.SIX,
-                      data: Util.Bit.StringToBuffer(session.cookie),
+                      data: Util.Bit.ToBuffer(session.cookie),
                     }),
                     new Parameter({
                       type: ParameterTypes.SEVENTEEN,
-                      data: Util.Bit.StringToBuffer(session.user.EmailAddress),
+                      data: Util.Bit.ToBuffer(session.user.EmailAddress),
                     }),
                     new Parameter({
                       type: ParameterTypes.EIGHTYFOUR,
-                      data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/change-password'),
+                      data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/change-password'),
                     }),
                   ],
                 }).ToBuffer()
@@ -511,11 +512,11 @@ const authServer = Net.createServer((socket) => {
                   }),
                   new Parameter({
                     type: ParameterTypes.FOUR,
-                    data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/password'),
+                    data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/password'),
                   }),
                   new Parameter({
                     type: ParameterTypes.EIGHT,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(5)),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(5)),
                   }),
                 ],
               }).ToBuffer()
@@ -537,16 +538,16 @@ const authServer = Net.createServer((socket) => {
                   /*
                 new Parameter({
                   type: ParameterTypes.ONE,
-                  data: screenName?.data ?? Util.Bit.StringToBuffer(''),
+                  data: screenName?.data ?? Util.Bit.ToBuffer(''),
                 }),
                 */
                   new Parameter({
                     type: ParameterTypes.FOUR,
-                    data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/unregistered'),
+                    data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/unregistered'),
                   }),
                   new Parameter({
                     type: ParameterTypes.EIGHT,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(7)),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(7)),
                   }),
                 ],
               }).ToBuffer()
@@ -586,10 +587,10 @@ function overwriteSnacData(snac: SNAC, hexString: string) {
   const hexBuffer = hexString.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || [];
 
   // Iterate through the 'parameters' array in the 'snac' object
-  snac.parameters.forEach((parameter) => {
+  snac.parameters?.forEach((parameter) => {
     // Only overwrite 'data' for parameters with 'length' of 1 or more
     if (parameter.length > 0) {
-      parameter.data = Util.Bit.BytesToBuffer(hexBuffer);
+      parameter.data = Util.Bit.ToBuffer(hexBuffer);
     }
   });
 
@@ -600,7 +601,7 @@ const bosServer = Net.createServer((socket) => {
   const session = _sessions.add({
     sequence: 0,
     socket: socket,
-    buffer: Util.Bit.BytesToBuffer([]),
+    buffer: Util.Bit.ToBuffer([]),
     groupId: -1,
     cookie: '',
     services: [],
@@ -725,7 +726,7 @@ const bosServer = Net.createServer((socket) => {
                   session.services = [];
                 }
                 const extCookie = snac.parameters
-                  ? snac.parameters.find((item) => {
+                  ? snac.parameters?.find((item) => {
                       return item.type === ParameterTypes.ONE;
                     })
                   : undefined;
@@ -736,7 +737,7 @@ const bosServer = Net.createServer((socket) => {
                   const extCookieType = dataExtCookie.subarray(0, 2);
                   const extCookieLen = dataExtCookie.subarray(2, 3);
                   const extCookieData = dataExtCookie.subarray(3, 3 + Util.Bit.BufferToUInt8(extCookieLen));
-                  serviceSession.cookie = [Util.Bit.BufferToString(extCookieData), session.user?.ScreenName].join('.');
+                  serviceSession.cookie = [Util.Bit.ToString(extCookieData), session.user?.ScreenName].join('.');
                 } else {
                   serviceSession.cookie = session.user?.ScreenName ?? '';
                 }
@@ -845,23 +846,23 @@ const bosServer = Net.createServer((socket) => {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.ONE,
-                          data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                          data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                         }),
                         new Parameter({
                           type: ParameterTypes.SIX,
-                          data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                          data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                         }),
                         new Parameter({
                           type: ParameterTypes.FIFTEEN,
-                          data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                          data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                         }),
                         new Parameter({
                           type: ParameterTypes.THREE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(Util.Dates.GetTimestamp())),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(Util.Dates.GetTimestamp())),
                         }),
                         new Parameter({
                           type: ParameterTypes.TEN,
-                          data: Util.Bit.BytesToBuffer(
+                          data: Util.Bit.ToBuffer(
                             // FIXME: Add a proper regex IP parser.
                             session.socket?.remoteAddress
                               ?.split('.')
@@ -873,17 +874,17 @@ const bosServer = Net.createServer((socket) => {
                         }),
                         new Parameter({
                           type: ParameterTypes.THIRTY,
-                          data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                          data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                         }),
                         new Parameter({
                           type: ParameterTypes.FIVE,
-                          data: Util.Bit.BytesToBuffer(
+                          data: Util.Bit.ToBuffer(
                             Util.Bit.UInt32ToBytes((session.user?.CreationDate ?? new Date(0)).getTime())
                           ),
                         }),
                         new Parameter({
                           type: ParameterTypes.TWELVE,
-                          data: Util.Bit.BytesToBuffer([
+                          data: Util.Bit.ToBuffer([
                             0xae, 0x44, 0xbe, 0xa5, 0x00, 0x00, 0x16, 0x44, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -958,23 +959,23 @@ const bosServer = Net.createServer((socket) => {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.ONE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(1024)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(1024)),
                         }),
                         new Parameter({
                           type: ParameterTypes.TWO,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(18)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(18)),
                         }),
                         new Parameter({
                           type: ParameterTypes.FIVE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(128)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(128)),
                         }),
                         new Parameter({
                           type: ParameterTypes.THREE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(10)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(10)),
                         }),
                         new Parameter({
                           type: ParameterTypes.FOUR,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(4096)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(4096)),
                         }),
                       ],
                     }).ToBuffer()
@@ -984,20 +985,20 @@ const bosServer = Net.createServer((socket) => {
               }
               case SNACTypes.FOUR: {
                 // user directory location information update request.
-                snac.parameters.forEach((item) => {
+                snac.parameters?.forEach((item) => {
                   if (session.user) {
                     switch (item.type) {
                       case ParameterTypes.ONE:
-                        session.user.ProfileEncoding = Util.Bit.BufferToString(item.data as Buffer);
+                        session.user.ProfileEncoding = Util.Bit.ToString(item.data as Buffer);
                         break;
                       case ParameterTypes.TWO:
                         session.user.Profile = item.data as Buffer;
                         break;
                       case ParameterTypes.THREE:
-                        session.user.AwayMessageEncoding = Util.Bit.BufferToString(item.data as Buffer);
+                        session.user.AwayMessageEncoding = Util.Bit.ToString(item.data as Buffer);
                         break;
                       case ParameterTypes.FOUR:
-                        session.user.AwayMessage = Util.Bit.BufferToString(item.data as Buffer);
+                        session.user.AwayMessage = Util.Bit.ToString(item.data as Buffer);
                         break;
                       case ParameterTypes.FIVE:
                         session.user.Capabilities = item.data as Buffer;
@@ -1075,7 +1076,7 @@ const bosServer = Net.createServer((socket) => {
                   const flagParameters = [
                     new Parameter({
                       type: ParameterTypes.ONE,
-                      data: Util.Bit.BytesToBuffer(
+                      data: Util.Bit.ToBuffer(
                         Util.Bit.UInt32ToBytes(
                           Util.Bit.UserClass(
                             userInfo.user.Class,
@@ -1086,23 +1087,20 @@ const bosServer = Net.createServer((socket) => {
                     }),
                     new Parameter({
                       type: ParameterTypes.FIFTEEN,
-                      data: Util.Bit.BytesToBuffer(
+                      data: Util.Bit.ToBuffer(
                         Util.Bit.UInt32ToBytes(Util.Dates.GetTimestamp() - userInfo.user.SignedOnTimestamp.getTime())
                       ),
                     }),
                     new Parameter({
                       type: ParameterTypes.THREE,
-                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(userInfo.user.SignedOnTimestamp.getTime())),
+                      data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(userInfo.user.SignedOnTimestamp.getTime())),
                     }),
                   ];
-                  if (
-                    Util.Bit.BufferToUInt32(Util.Bit.BytesToBuffer(snac.requestFlags)) & 0x01 &&
-                    userInfo.user.Profile
-                  ) {
+                  if (Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.requestFlags)) & 0x01 && userInfo.user.Profile) {
                     flagParameters.push(
                       new Parameter({
                         type: ParameterTypes.ONE,
-                        data: Util.Bit.StringToBuffer(userInfo.user.ProfileEncoding),
+                        data: Util.Bit.ToBuffer(userInfo.user.ProfileEncoding),
                       })
                     );
                     flagParameters.push(
@@ -1113,25 +1111,25 @@ const bosServer = Net.createServer((socket) => {
                     );
                   }
                   if (
-                    Util.Bit.BufferToUInt32(Util.Bit.BytesToBuffer(snac.requestFlags)) & 0x02 &&
+                    Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.requestFlags)) & 0x02 &&
                     userInfo.user.AwayMessage &&
                     userInfo.user.AwayMessage.length
                   ) {
                     flagParameters.push(
                       new Parameter({
                         type: ParameterTypes.THREE,
-                        data: Util.Bit.StringToBuffer(userInfo.user.AwayMessageEncoding),
+                        data: Util.Bit.ToBuffer(userInfo.user.AwayMessageEncoding),
                       })
                     );
                     flagParameters.push(
                       new Parameter({
                         type: ParameterTypes.FOUR,
-                        data: Util.Bit.StringToBuffer(userInfo.user.AwayMessage),
+                        data: Util.Bit.ToBuffer(userInfo.user.AwayMessage),
                       })
                     );
                   }
                   if (
-                    Util.Bit.BufferToUInt32(Util.Bit.BytesToBuffer(snac.requestFlags)) & 0x04 &&
+                    Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.requestFlags)) & 0x04 &&
                     userInfo.user.Capabilities
                   ) {
                     flagParameters.push(
@@ -1195,15 +1193,15 @@ const bosServer = Net.createServer((socket) => {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.TWO,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(2000)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(2000)),
                         }),
                         new Parameter({
                           type: ParameterTypes.ONE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(220)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(220)),
                         }),
                         new Parameter({
                           type: ParameterTypes.FOUR,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(32)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(32)),
                         }),
                       ],
                     }).ToBuffer()
@@ -1252,7 +1250,7 @@ const bosServer = Net.createServer((socket) => {
                   screenName: snac.screenName,
                 });
                 if (existingSession) {
-                  const ack = snac.parameters.find((item) => {
+                  const ack = snac.parameters?.find((item) => {
                     return item.type === ParameterTypes.THREE;
                   });
                   if (ack) {
@@ -1270,9 +1268,9 @@ const bosServer = Net.createServer((socket) => {
                     // ));
                   }
                   const frags = snac.parameters
-                    .map((item) => {
+                    ?.map((item) => {
                       if (item.data instanceof Buffer) {
-                        return Util.Bit.BytesToBuffer([]);
+                        return Util.Bit.ToBuffer([]);
                       }
 
                       return item.data
@@ -1290,7 +1288,7 @@ const bosServer = Net.createServer((socket) => {
                   _existingSession = existingSession;
                   _snac = snac;
                   _session = session;
-                  ready = true;
+                  acceptTwitchMessages = true;
                   if (frags) {
                     console.log(frags.slice(0, 15));
                   }
@@ -1316,14 +1314,14 @@ const bosServer = Net.createServer((socket) => {
                             ? [
                                 new Parameter({
                                   type: ParameterTypes.TWO,
-                                  data: Buffer.concat(frags),
+                                  data: Buffer.concat(frags ?? []),
                                 }),
                               ]
                             : snac.channel === 2
                               ? [
                                   new Parameter({
                                     type: ParameterTypes.FIVE,
-                                    data: snac.parameters.find((item) => {
+                                    data: snac.parameters?.find((item) => {
                                       return item.type === ParameterTypes.FIVE;
                                     })?.data as Buffer,
                                   }),
@@ -1364,7 +1362,7 @@ const bosServer = Net.createServer((socket) => {
               case SNACTypes.TWO: {
                 // admin information request.
                 if (
-                  snac.parameters.find((item) => {
+                  snac.parameters?.find((item) => {
                     return item.type === ParameterTypes.ONE;
                   })
                 ) {
@@ -1381,7 +1379,7 @@ const bosServer = Net.createServer((socket) => {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.ONE,
-                            data: Util.Bit.StringToBuffer(session.user?.FormattedScreenName),
+                            data: Util.Bit.ToBuffer(session.user?.FormattedScreenName),
                           }),
                         ],
                         extensions: {
@@ -1392,7 +1390,7 @@ const bosServer = Net.createServer((socket) => {
                   );
                 }
                 if (
-                  snac.parameters.find((item) => {
+                  snac.parameters?.find((item) => {
                     return item.type === ParameterTypes.SEVENTEEN;
                   })
                 ) {
@@ -1409,7 +1407,7 @@ const bosServer = Net.createServer((socket) => {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.SEVENTEEN,
-                            data: Util.Bit.StringToBuffer(session.user?.EmailAddress),
+                            data: Util.Bit.ToBuffer(session.user?.EmailAddress),
                           }),
                         ],
                         extensions: {
@@ -1420,7 +1418,7 @@ const bosServer = Net.createServer((socket) => {
                   );
                 }
                 if (
-                  snac.parameters.find((item) => {
+                  snac.parameters?.find((item) => {
                     return item.type === ParameterTypes.NINETEEN;
                   })
                 ) {
@@ -1437,7 +1435,7 @@ const bosServer = Net.createServer((socket) => {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.NINETEEN,
-                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(3)),
+                            data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(3)),
                           }),
                         ],
                       }).ToBuffer()
@@ -1450,26 +1448,26 @@ const bosServer = Net.createServer((socket) => {
                 // admin information update request.
                 const buffer: Buffer[] = [];
                 if (
-                  snac.parameters.find((item) => {
+                  snac.parameters?.find((item) => {
                     return item.type === ParameterTypes.ONE;
                   })
                 ) {
-                  const parameter = snac.parameters.find((item) => {
+                  const parameter = snac.parameters?.find((item) => {
                     return item.type === ParameterTypes.ONE;
                   })?.data as Buffer;
                   if (
                     session.user &&
-                    Util.Strings.TrimData(Util.Bit.BufferToString(parameter)) === session.user.ScreenName &&
+                    Util.Strings.TrimData(Util.Bit.ToString(parameter)) === session.user.ScreenName &&
                     parameter.length <= 18
                   ) {
-                    session.user.FormattedScreenName = Util.Bit.BufferToString(parameter).trim();
+                    session.user.FormattedScreenName = Util.Bit.ToString(parameter).trim();
                     buffer.push(
                       new Buffer([
                         Util.Bit.UInt16ToBytes(0x03),
                         Util.Bit.UInt16ToBytes(0x01),
                         new Parameter({
                           type: ParameterTypes.ONE,
-                          data: Util.Bit.StringToBuffer(Util.Bit.BufferToString(parameter).trim()),
+                          data: Util.Bit.ToBuffer(Util.Bit.ToString(parameter).trim()),
                         }).ToBuffer(),
                       ])
                     );
@@ -1485,32 +1483,32 @@ const bosServer = Net.createServer((socket) => {
                         }).ToBuffer(),
                         new Parameter({
                           type: ParameterTypes.FOUR,
-                          data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/'),
+                          data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/'),
                         }).ToBuffer(),
                         new Parameter({
                           type: ParameterTypes.EIGHT,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0x0b)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0x0b)),
                         }).ToBuffer(),
                       ])
                     );
                   }
                 }
-                const parameter = snac.parameters.find((item) => {
+                const parameter = snac.parameters?.find((item) => {
                   return item.type === ParameterTypes.SEVENTEEN;
                 })?.data as Buffer;
                 if (parameter && session.user) {
                   if (
-                    Util.Bit.BufferToString(parameter).indexOf('@') > -1 &&
-                    Util.Bit.BufferToString(parameter).indexOf('.') > -1
+                    Util.Bit.ToString(parameter).indexOf('@') > -1 &&
+                    Util.Bit.ToString(parameter).indexOf('.') > -1
                   ) {
-                    session.user.EmailAddress = Util.Bit.BufferToString(parameter).trim();
+                    session.user.EmailAddress = Util.Bit.ToString(parameter).trim();
                     buffer.push(
                       new Buffer([
                         Util.Bit.UInt16ToBytes(0x03),
                         Util.Bit.UInt16ToBytes(0x01),
                         new Parameter({
                           type: 0x11,
-                          data: Util.Bit.StringToBuffer(Util.Bit.BufferToString(parameter).trim()),
+                          data: Util.Bit.ToBuffer(Util.Bit.ToString(parameter).trim()),
                         }).ToBuffer(),
                       ])
                     );
@@ -1525,18 +1523,18 @@ const bosServer = Net.createServer((socket) => {
                         }).ToBuffer(),
                         new Parameter({
                           type: ParameterTypes.FOUR,
-                          data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/'),
+                          data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/'),
                         }).ToBuffer(),
                         new Parameter({
                           type: ParameterTypes.EIGHT,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0x0b)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0x0b)),
                         }).ToBuffer(),
                       ])
                     );
                   }
                 }
                 if (
-                  snac.parameters.find((item) => {
+                  snac.parameters?.find((item) => {
                     return item.type === ParameterTypes.NINETEEN;
                   })
                 ) {
@@ -1550,11 +1548,11 @@ const bosServer = Net.createServer((socket) => {
                       }).ToBuffer(),
                       new Parameter({
                         type: ParameterTypes.FOUR,
-                        data: Util.Bit.StringToBuffer('https://www.lwrca.se/owaim/'),
+                        data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/'),
                       }).ToBuffer(),
                       new Parameter({
                         type: ParameterTypes.EIGHT,
-                        data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0x10)),
+                        data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0x10)),
                       }).ToBuffer(),
                     ])
                   );
@@ -1589,23 +1587,23 @@ const bosServer = Net.createServer((socket) => {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.ONE,
-                            data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                            data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                           }),
                           new Parameter({
                             type: ParameterTypes.SIX,
-                            data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                            data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                           }),
                           new Parameter({
                             type: ParameterTypes.FIFTEEN,
-                            data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                            data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                           }),
                           new Parameter({
                             type: ParameterTypes.THREE,
-                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(Util.Dates.GetTimestamp())),
+                            data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(Util.Dates.GetTimestamp())),
                           }),
                           new Parameter({
                             type: ParameterTypes.TEN,
-                            data: Util.Bit.BytesToBuffer(
+                            data: Util.Bit.ToBuffer(
                               session.socket?.remoteAddress
                                 ?.split('.')
                                 .map((item) => {
@@ -1616,15 +1614,15 @@ const bosServer = Net.createServer((socket) => {
                           }),
                           new Parameter({
                             type: ParameterTypes.THIRTY,
-                            data: Util.Bit.BytesToBuffer([0, 0, 0, 0]),
+                            data: Util.Bit.ToBuffer([0, 0, 0, 0]),
                           }),
                           new Parameter({
                             type: 0x05,
-                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(session.user.CreationDate.getTime())),
+                            data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(session.user.CreationDate.getTime())),
                           }),
                           new Parameter({
                             type: 0x0c,
-                            data: Util.Bit.BytesToBuffer([
+                            data: Util.Bit.ToBuffer([
                               0xae, 0x44, 0xbe, 0xa5, 0x00, 0x00, 0x16, 0x44, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1665,11 +1663,11 @@ const bosServer = Net.createServer((socket) => {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.TWO,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(220)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(220)),
                         }),
                         new Parameter({
                           type: ParameterTypes.ONE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(220)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(220)),
                         }),
                       ],
                     }).ToBuffer()
@@ -1718,7 +1716,7 @@ const bosServer = Net.createServer((socket) => {
                       parameters: [
                         new Parameter({
                           type: 0x04,
-                          data: Util.Bit.BytesToBuffer([
+                          data: Util.Bit.ToBuffer([
                             0x01, 0x90, 0x00, 0x3d, 0x00, 0xc8, 0x00, 0xc8, 0x00, 0x01, 0x00, 0x01, 0x00, 0x96, 0x00,
                             0x0c, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x32, 0x00, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x01, 0x00,
@@ -1727,35 +1725,35 @@ const bosServer = Net.createServer((socket) => {
                         }),
                         new Parameter({
                           type: ParameterTypes.TWO,
-                          data: Util.Bit.BytesToBuffer([0x00, 0xfe]),
+                          data: Util.Bit.ToBuffer([0x00, 0xfe]),
                         }),
                         new Parameter({
                           type: ParameterTypes.THREE,
-                          data: Util.Bit.BytesToBuffer([0x01, 0xfc]),
+                          data: Util.Bit.ToBuffer([0x01, 0xfc]),
                         }),
                         new Parameter({
                           type: ParameterTypes.FIVE,
-                          data: Util.Bit.BytesToBuffer([0x00, 0x64]),
+                          data: Util.Bit.ToBuffer([0x00, 0x64]),
                         }),
                         new Parameter({
                           type: ParameterTypes.SIX,
-                          data: Util.Bit.BytesToBuffer([0x00, 0x61]),
+                          data: Util.Bit.ToBuffer([0x00, 0x61]),
                         }),
                         new Parameter({
                           type: ParameterTypes.SEVEN,
-                          data: Util.Bit.BytesToBuffer([0x00, 0xc8]),
+                          data: Util.Bit.ToBuffer([0x00, 0xc8]),
                         }),
                         new Parameter({
                           type: ParameterTypes.EIGHT,
-                          data: Util.Bit.BytesToBuffer([0x00, 0x0a]),
+                          data: Util.Bit.ToBuffer([0x00, 0x0a]),
                         }),
                         new Parameter({
                           type: ParameterTypes.NINE,
-                          data: Util.Bit.BytesToBuffer([0x00, 0x06, 0x0f, 0x22]),
+                          data: Util.Bit.ToBuffer([0x00, 0x06, 0x0f, 0x22]),
                         }),
                         new Parameter({
                           type: ParameterTypes.TEN,
-                          data: Util.Bit.BytesToBuffer([0x00, 0x06, 0x0f, 0x0e]),
+                          data: Util.Bit.ToBuffer([0x00, 0x06, 0x0f, 0x0e]),
                         }),
                       ],
                     }).ToBuffer()
@@ -1868,7 +1866,7 @@ const bosServer = Net.createServer((socket) => {
                       item.classId,
                       item.attributes
                     );
-                    buffer.push(b ? Util.Bit.BytesToBuffer([0x00, 0x00]) : Util.Bit.BytesToBuffer([0x00, 0x0a]));
+                    buffer.push(b ? Util.Bit.ToBuffer([0x00, 0x00]) : Util.Bit.ToBuffer([0x00, 0x0a]));
                   }
                 }
                 SendData(
@@ -1898,7 +1896,7 @@ const bosServer = Net.createServer((socket) => {
                       item.classId,
                       item.attributes
                     );
-                    buffer.push(b ? Util.Bit.BytesToBuffer([0x00, 0x00]) : Util.Bit.BytesToBuffer([0x00, 0x0a]));
+                    buffer.push(b ? Util.Bit.ToBuffer([0x00, 0x00]) : Util.Bit.ToBuffer([0x00, 0x0a]));
                   }
                 }
                 SendData(
@@ -1928,7 +1926,7 @@ const bosServer = Net.createServer((socket) => {
                       item.classId,
                       item.attributes
                     );
-                    buffer.push(b ? Util.Bit.BytesToBuffer([0x00, 0x00]) : Util.Bit.BytesToBuffer([0x00, 0x0a]));
+                    buffer.push(b ? Util.Bit.ToBuffer([0x00, 0x00]) : Util.Bit.ToBuffer([0x00, 0x0a]));
                   }
                 }
                 SendData(
@@ -1992,7 +1990,7 @@ const aosServer = Net.createServer((socket) => {
   const session: Session = {
     sequence: 0,
     socket: socket,
-    buffer: Util.Bit.BytesToBuffer([]),
+    buffer: Util.Bit.ToBuffer([]),
     groupId: -1,
     cookie: '',
     services: [],
@@ -2027,15 +2025,15 @@ const aosServer = Net.createServer((socket) => {
               parameters: [
                 new Parameter({
                   type: ParameterTypes.ONE,
-                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                 }),
                 new Parameter({
                   type: ParameterTypes.FIFTEEN,
-                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                 }),
                 new Parameter({
                   type: ParameterTypes.THREE,
-                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                 }),
               ],
               extensions: {
@@ -2099,10 +2097,10 @@ const aosServer = Net.createServer((socket) => {
             return item.type === ParameterTypes.SIX;
           });
           if (cookie) {
-            const existingSession = _sessions.item({ serviceCookie: Util.Bit.BufferToString(cookie.data as Buffer) });
+            const existingSession = _sessions.item({ serviceCookie: Util.Bit.ToString(cookie.data as Buffer) });
             if (existingSession) {
               const serviceSession = existingSession.services.find((item) => {
-                return item.cookie === Util.Bit.BufferToString(cookie.data as Buffer);
+                return item.cookie === Util.Bit.ToString(cookie.data as Buffer);
               });
               if (serviceSession) {
                 session.parent = {
@@ -2245,15 +2243,15 @@ const aosServer = Net.createServer((socket) => {
                               parameters: [
                                 new Parameter({
                                   type: 0x01,
-                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                                 }),
                                 new Parameter({
                                   type: 0x0f,
-                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                                 }),
                                 new Parameter({
                                   type: 0x03,
-                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                                 }),
                               ],
                               extensions: {
@@ -2279,15 +2277,15 @@ const aosServer = Net.createServer((socket) => {
                               parameters: [
                                 new Parameter({
                                   type: 0x01,
-                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                                 }),
                                 new Parameter({
                                   type: 0x0f,
-                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                                 }),
                                 new Parameter({
                                   type: 0x03,
-                                  data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
+                                  data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0x0000)),
                                 }),
                               ],
                               extensions: {
@@ -2457,11 +2455,11 @@ const aosServer = Net.createServer((socket) => {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.TWO,
-                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                            data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(10)),
                           }),
                           new Parameter({
                             type: 0x04,
-                            data: Util.Bit.BytesToBuffer(
+                            data: Util.Bit.ToBuffer(
                               Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
                                 Util.Bit.UInt8ToBytes(existingChat.cookie.length),
                                 Util.Bit.StringToBytes(existingChat.cookie),
@@ -2472,61 +2470,61 @@ const aosServer = Net.createServer((socket) => {
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDEIGHT,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(3)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(3)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDNINE,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(1024)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(1024)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTEN,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(66)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(66)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDELEVEN,
-                                      data: Util.Bit.StringToBuffer(existingChat.name),
+                                      data: Util.Bit.ToBuffer(existingChat.name),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTHIRTEEN,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(1)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(1)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTHREE,
-                                      data: Util.Bit.StringToBuffer(existingChat.creator),
+                                      data: Util.Bit.ToBuffer(existingChat.creator),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.THREE,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(10)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.FOUR,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(20)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(20)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWO,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.FIVE,
-                                      data: Util.Bit.BytesToBuffer(
+                                      data: Util.Bit.ToBuffer(
                                         Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
                                           Util.Bit.UInt8ToBytes(existingChat.cookie.length),
                                           Util.Bit.StringToBytes(existingChat.cookie),
@@ -2549,17 +2547,17 @@ const aosServer = Net.createServer((socket) => {
               }
               case SNACTypes.EIGHT: {
                 // create/join chat.
-                const chatRoomName = snac.parameters.find((item) => {
+                const chatRoomName = snac.parameters?.find((item) => {
                   return item.type === ParameterTypes.TWOHUNDREDELEVEN;
                 });
-                const chatCharset = snac.parameters.find((item) => {
+                const chatCharset = snac.parameters?.find((item) => {
                   return item.type === ParameterTypes.TWOHUNDREDFOURTEEN;
                 });
-                const chatLang = snac.parameters.find((item) => {
+                const chatLang = snac.parameters?.find((item) => {
                   return item.type === ParameterTypes.TWOHUNDREDFIFTEEN;
                 });
                 const existingChat = _chatrooms.item({
-                  name: Util.Bit.BufferToString(chatRoomName?.data as Buffer),
+                  name: Util.Bit.ToString(chatRoomName?.data as Buffer),
                 });
                 if (!session?.parent?.user || !chatRoomName || !chatCharset || !chatLang) {
                   return;
@@ -2579,11 +2577,11 @@ const aosServer = Net.createServer((socket) => {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.TWO,
-                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                            data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(10)),
                           }),
                           new Parameter({
                             type: 0x04,
-                            data: Util.Bit.BytesToBuffer(
+                            data: Util.Bit.ToBuffer(
                               Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
                                 Util.Bit.UInt8ToBytes(existingChat.cookie.length),
                                 Util.Bit.StringToBytes(existingChat.cookie),
@@ -2594,61 +2592,61 @@ const aosServer = Net.createServer((socket) => {
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDEIGHT,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(3)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(3)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDNINE,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(1024)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(1024)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTEN,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(66)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(66)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDELEVEN,
-                                      data: Util.Bit.StringToBuffer(existingChat.name),
+                                      data: Util.Bit.ToBuffer(existingChat.name),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTHIRTEEN,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(1)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(1)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTHREE,
-                                      data: Util.Bit.StringToBuffer(existingChat.creator),
+                                      data: Util.Bit.ToBuffer(existingChat.creator),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.THREE,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(10)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.FOUR,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(20)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(20)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWO,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.FIVE,
-                                      data: Util.Bit.BytesToBuffer(
+                                      data: Util.Bit.ToBuffer(
                                         Util.Bit.UInt16ToBytes(existingChat.exchange).concat(
                                           Util.Bit.UInt8ToBytes(existingChat.cookie.length),
                                           Util.Bit.StringToBytes(existingChat.cookie),
@@ -2673,9 +2671,9 @@ const aosServer = Net.createServer((socket) => {
                     cookie: snac.cookie === 'create' ? Util.Strings.GenerateChatCookie() : snac.cookie,
                     detailLevel: snac.detailLevel,
                     creator: session.parent.user.ScreenName,
-                    name: Util.Bit.BufferToString(chatRoomName.data as Buffer),
-                    charset: Util.Bit.BufferToString(chatCharset.data as Buffer),
-                    lang: Util.Bit.BufferToString(chatLang.data as Buffer),
+                    name: Util.Bit.ToString(chatRoomName.data as Buffer),
+                    charset: Util.Bit.ToString(chatCharset.data as Buffer),
+                    lang: Util.Bit.ToString(chatLang.data as Buffer),
                     instance: 0,
                     users: [],
                     sessions: [],
@@ -2694,11 +2692,11 @@ const aosServer = Net.createServer((socket) => {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.TWO,
-                            data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                            data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(10)),
                           }),
                           new Parameter({
                             type: ParameterTypes.FOUR,
-                            data: Util.Bit.BytesToBuffer(
+                            data: Util.Bit.ToBuffer(
                               Util.Bit.UInt16ToBytes(newRoom.exchange).concat(
                                 Util.Bit.UInt8ToBytes(newRoom.cookie.length),
                                 Util.Bit.StringToBytes(newRoom.cookie),
@@ -2709,61 +2707,61 @@ const aosServer = Net.createServer((socket) => {
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDEIGHT,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(3)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(3)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDNINE,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(1024)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(1024)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTEN,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(66)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(66)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDELEVEN,
-                                      data: Util.Bit.StringToBuffer(newRoom.name),
+                                      data: Util.Bit.ToBuffer(newRoom.name),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTHIRTEEN,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(1)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(1)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWOHUNDREDTHREE,
-                                      data: Util.Bit.StringToBuffer(newRoom.creator),
+                                      data: Util.Bit.ToBuffer(newRoom.creator),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.THREE,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(10)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(10)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.FOUR,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt8ToBytes(20)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(20)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.TWO,
-                                      data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                                      data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                                     }).ToBuffer()
                                   ),
                                   Util.Bit.BufferToBytes(
                                     new Parameter({
                                       type: ParameterTypes.FIVE,
-                                      data: Util.Bit.BytesToBuffer(
+                                      data: Util.Bit.ToBuffer(
                                         Util.Bit.UInt16ToBytes(newRoom.exchange).concat(
                                           Util.Bit.UInt8ToBytes(newRoom.cookie.length),
                                           Util.Bit.StringToBytes(newRoom.cookie),
@@ -2794,7 +2792,7 @@ const aosServer = Net.createServer((socket) => {
                 }
                 const userInfoBlock = new Parameter({
                   type: ParameterTypes.THREE,
-                  data: Util.Bit.BytesToBuffer(
+                  data: Util.Bit.ToBuffer(
                     Util.Bit.UInt8ToBytes(session.parent.user.ScreenName.length).concat(
                       Util.Bit.StringToBytes(session.parent.user.ScreenName),
                       Util.Bit.UInt16ToBytes(0),
@@ -2802,25 +2800,25 @@ const aosServer = Net.createServer((socket) => {
                       Util.Bit.BufferToBytes(
                         new Parameter({
                           type: ParameterTypes.ONE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                         }).ToBuffer()
                       ),
                       Util.Bit.BufferToBytes(
                         new Parameter({
                           type: ParameterTypes.FIFTEEN,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0)),
                         }).ToBuffer()
                       ),
                       Util.Bit.BufferToBytes(
                         new Parameter({
                           type: ParameterTypes.THREE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0)),
                         }).ToBuffer()
                       )
                     )
                   ),
                 });
-                const parameterMessageInformation = snac.parameters.find((item) => {
+                const parameterMessageInformation = snac.parameters?.find((item) => {
                   return item.type === ParameterTypes.FIVE;
                 });
                 if (!parameterMessageInformation) {
@@ -2845,7 +2843,7 @@ const aosServer = Net.createServer((socket) => {
                         userInfoBlock,
                         new Parameter({
                           type: ParameterTypes.ONE,
-                          data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(32)),
+                          data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(32)),
                         }),
                         parameterMessageInformation,
                       ],
@@ -2959,15 +2957,15 @@ app.get('/old/:text', (req, res) => {
       _snac.channel == 1
         ? new Parameter({
             type: ParameterTypes.TWO,
-            data: Util.Bit.BytesToBuffer(newMessage),
+            data: Util.Bit.ToBuffer(newMessage),
           })
         : _snac.channel == 2
           ? new Parameter({
               type: ParameterTypes.FIVE,
               data:
-                _snac.parameters.find((item) => {
+                _snac.parameters?.find((item) => {
                   return item.type === ParameterTypes.FIVE;
-                })?.data ?? Util.Bit.BytesToBuffer([]),
+                })?.data ?? Util.Bit.ToBuffer([]),
             })
           : ({} as Parameter),
     ],
@@ -3001,15 +2999,15 @@ app.post('/message', (req, res) => {
       _snac.channel == 1
         ? new Parameter({
             type: ParameterTypes.TWO,
-            data: Util.Bit.BytesToBuffer(newMessage),
+            data: Util.Bit.ToBuffer(newMessage),
           })
         : _snac.channel == 2
           ? new Parameter({
               type: ParameterTypes.FIVE,
               data:
-                _snac.parameters.find((item) => {
+                _snac.parameters?.find((item) => {
                   return item.type === ParameterTypes.FIVE;
-                })?.data ?? Util.Bit.BytesToBuffer([]),
+                })?.data ?? Util.Bit.ToBuffer([]),
             })
           : ({} as Parameter),
     ],
@@ -3034,22 +3032,25 @@ function sentAIMMessage(screenName: string, message: string) {
       formattedScreenName: screenName,
       warningLevel: 0,
     },
-    parameters: [
+    parameters:
       _snac.channel == 1
-        ? new Parameter({
-            type: ParameterTypes.TWO,
-            data: Util.Bit.BytesToBuffer(newMessage),
-          })
+        ? [
+            new Parameter({
+              type: ParameterTypes.TWO,
+              data: Util.Bit.ToBuffer(newMessage),
+            }),
+          ]
         : _snac.channel == 2
-          ? new Parameter({
-              type: ParameterTypes.FIVE,
-              data:
-                _snac.parameters.find((item) => {
-                  return item.type === ParameterTypes.FIVE;
-                })?.data ?? Util.Bit.BytesToBuffer([]),
-            })
-          : ({} as Parameter),
-    ],
+          ? [
+              new Parameter({
+                type: ParameterTypes.FIVE,
+                data:
+                  _snac.parameters?.find((item) => {
+                    return item.type === ParameterTypes.FIVE;
+                  })?.data ?? Util.Bit.ToBuffer(''),
+              }),
+            ]
+          : [],
   }).ToBuffer();
 
   SendData(_existingSession, 0, 2, Util.Bit.BufferToBytes(newSnac));

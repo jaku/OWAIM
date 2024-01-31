@@ -19,13 +19,13 @@ class Interest {
     ];
   }
   static GetInterests(bytes: number[]) {
-    let buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.ToBuffer(bytes);
     const out: Interest[] = [];
     while (buffer.length > 4) {
       const type = Util.Bit.BufferToUInt8(buffer.subarray(0, 1));
       const id = Util.Bit.BufferToUInt8(buffer.subarray(1, 2));
       const length = Util.Bit.BufferToUInt16(buffer.subarray(2, 4));
-      const name = Util.Bit.BufferToString(buffer.subarray(4, 4 + length));
+      const name = Util.Bit.ToString(buffer.subarray(4, 4 + length));
       out.push(
         new Interest({
           type: type,

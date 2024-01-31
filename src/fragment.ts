@@ -13,7 +13,7 @@ class Fragment {
   }
 
   ToBuffer() {
-    return Util.Bit.BytesToBuffer([
+    return Util.Bit.ToBuffer([
       ...Util.Bit.UInt8ToBytes(this.id),
       ...Util.Bit.UInt8ToBytes(this.version),
       ...Util.Bit.UInt16ToBytes(this.data.length),
@@ -22,7 +22,7 @@ class Fragment {
   }
 
   static GetFragments(bytes: number[]): Fragment[] {
-    let buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.ToBuffer(bytes);
     const out: Fragment[] = [];
     while (buffer.length >= 4) {
       const fragId = Util.Bit.BufferToUInt8(buffer.subarray(0, 1));

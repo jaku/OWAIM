@@ -1,29 +1,64 @@
 import crypto from 'crypto';
 
 const Bit = {
-  StringToBuffer: (data?: string) => {
-    return Buffer.from(data ?? '');
+  ToBuffer: (data?: Buffer | number | number[] | string, position: number = 0, length?: number): Buffer => {
+    if (typeof data === 'string') {
+      return Buffer.from(data.slice(position, length ?? data.length));
+    } else if (data instanceof Buffer) {
+      return data.subarray(position, length ?? data.length);
+    } else if (typeof data === 'number') {
+      if (length === 1 || (data >= 0 && data < 2 << 8)) {
+        if (position) {
+          throw new Error('Position must be 0 when data is a number.');
+        }
+
+        const b = Buffer.alloc(1);
+        b.writeUInt8(data);
+        return b;
+      } else if (length === 2 || (data >= 2 << 8 && data < 2 << 16)) {
+        const b = Buffer.alloc(2);
+        b.writeUInt16BE(data);
+        return b;
+      } else if (length === 4 || (data >= 2 << 16 && data < 2 << 32)) {
+        const b = Buffer.alloc(4);
+        b.writeUint32BE(data);
+        return b;
+      } else {
+        return Buffer.from('');
+      }
+    } else if (Array.isArray(data)) {
+      return Buffer.from(data.slice(position, length));
+    } else {
+      return Buffer.from('');
+    }
   },
-  StringToBytes: (data: string) => {
-    return Bit.BufferToBytes(Bit.StringToBuffer(data));
+  StringToBytes: (str: string) => {
+    return Bit.BufferToBytes(Bit.ToBuffer(str));
   },
-  BufferToString: (data: Buffer) => {
-    return data.toString('ascii');
+  ToString: (data: Buffer | number | number[] | string, position: number = 0, length?: number): string => {
+    if (typeof data === 'string') {
+      return data;
+    } else if (data instanceof Buffer) {
+      return Bit.ToBuffer(position, length ?? data.length).toString('ascii');
+    } else if (typeof data === 'number') {
+      return Bit.ToString(Bit.ToBuffer(data, position, length));
+    } else if (Array.isArray(data)) {
+      return Bit.ToString(Bit.ToBuffer(data, position, length));
+    } else {
+      return '';
+    }
   },
-  BufferToBytes: (data: Buffer): number[] => {
-    return data.toJSON().data;
+  BufferToBytes: (buffer: Buffer, position: number = 0, length?: number): number[] => {
+    return buffer.subarray(position, length ?? buffer.length).toJSON().data;
   },
-  BufferToUInt8: (bytes: Buffer) => {
-    return Buffer.from(bytes).readUInt8();
+  BufferToUInt8: (buffer: Buffer, position: number = 0) => {
+    return buffer.readUInt8(position);
   },
-  BufferToUInt16: (bytes: Buffer) => {
-    return Buffer.from(bytes).readUInt16BE();
+  BufferToUInt16: (buffer: Buffer, position: number = 0) => {
+    return buffer.readUInt16BE(position);
   },
-  BufferToUInt32: (bytes: Buffer) => {
-    return Buffer.from(bytes).readUInt32BE();
-  },
-  BytesToBuffer: (data: number[]): Buffer => {
-    return Buffer.from(data);
+  BufferToUInt32: (buffer: Buffer, position: number = 0) => {
+    return buffer.readUInt32BE(position);
   },
   UInt8ToBytes: (num: number) => {
     const b = Buffer.alloc(1);
@@ -40,10 +75,10 @@ const Bit = {
     b.writeUInt32BE(num);
     return b.toJSON().data;
   },
-  BytesToChunkArray: (bytes: Buffer, size: number, formatter: (arg0: Buffer) => number[]) => {
-    return Array(Math.ceil(bytes.length / size))
-      .map((_, index) => index * size)
-      .map((begin) => bytes.subarray(begin, begin + size))
+  BufferToChunkArray: (buffer: Buffer, length: number, formatter: (arg0: Buffer) => number[]) => {
+    return Array(Math.ceil(buffer.length / length))
+      .map((_, index) => index * length)
+      .map((begin) => buffer.subarray(begin, begin + length))
       .map((array) => {
         return formatter ? formatter(array) : array;
       });
@@ -129,9 +164,10 @@ const Strings = {
   RoastPassword: (ticket: string, password: crypto.BinaryLike) => {
     return Bit.BufferToBytes(
       Crypto.MD5(
-        Bit.BytesToBuffer([
+        Bit.ToBuffer([
           ...Bit.BufferToBytes(Buffer.from(ticket)),
           ...Bit.BufferToBytes(Crypto.MD5(password)),
+          // FIXME: Check whether _AIM_MD5_STRING can be pulled from the packet.
           ...Bit.BufferToBytes(Buffer.from(Constants._AIM_MD5_STRING)),
         ])
       )

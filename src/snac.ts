@@ -61,12 +61,40 @@ export const enum Types {
   THIRTY = 0x1e,
 }
 
-class SNAC {
+class SNACHeader {
   foodGroup: FoodGroups = FoodGroups.ZERO;
   type: Types = Types.ZERO;
   flags: number = 0;
   requestId: number = 0;
-  parameters: Parameter[] = [];
+  parameters?: Parameter[] = [];
+  extensions?: Partial<SNAC>;
+
+  constructor(args: Buffer | SNACHeader) {
+    if (args instanceof Buffer) {
+      let bufferPosition = 0;
+      const packet = args.subarray(0, 10);
+
+      this.foodGroup = Util.Bit.BufferToUInt16(packet, bufferPosition);
+      bufferPosition += 2;
+      this.type = Util.Bit.BufferToUInt16(packet, bufferPosition);
+      this.flags = Util.Bit.BufferToUInt16(packet, bufferPosition);
+      this.requestId = Util.Bit.BufferToUInt32(packet, bufferPosition);
+    } else {
+      this.foodGroup = args.foodGroup;
+      this.type = args.type;
+      this.flags = args.flags;
+      this.requestId = args.requestId;
+      if (Array.isArray(args.parameters)) {
+        this.parameters = args.parameters;
+      }
+      if (args.extensions && typeof args.extensions === 'object') {
+        extend(this, args.extensions);
+      }
+    }
+  }
+}
+
+class SNAC extends SNACHeader {
   count: number = 0;
   date: Date = new Date();
   cookie: string = '';
@@ -89,38 +117,23 @@ class SNAC {
   detailLevel: number = 0;
   exchange: number = -1;
 
-  constructor(
-    arg:
-      | {
-          extensions?: unknown;
-          length?: number;
-          foodGroup: FoodGroups;
-          type: Types;
-          flags: number;
-          requestId: number;
-          parameters?: Parameter[];
-        }
-      | Buffer
-  ) {
-    if (!arg) {
+  constructor(args: Buffer | SNACHeader) {
+    super(args);
+
+    if (args instanceof SNACHeader) {
       return;
-    } else if (arg instanceof Buffer) {
-      const packet = arg.subarray(0, 10);
-      this.foodGroup = Util.Bit.BufferToUInt16(packet.subarray(0, 2));
-      this.type = Util.Bit.BufferToUInt16(packet.subarray(2, 4));
-      this.flags = Util.Bit.BufferToUInt16(packet.subarray(4, 6));
-      this.requestId = Util.Bit.BufferToUInt32(packet.subarray(6, 10));
-      if (arg.length > 10) {
-        const payload = arg.subarray(10);
+    } else if (args instanceof Buffer && args.length >= 10) {
+      let bufferPosition = 0; // Incremented by called functions.
+      if (args.length > 10) {
+        const payload = args.subarray(bufferPosition);
+        bufferPosition = 0;
         if (payload.length > 0) {
           if (this.foodGroup === FoodGroups.FEEDBAG && this.type === Types.FIVE) {
             this.date = new Date(Util.Bit.BufferToUInt32(payload.subarray(0, 4)));
-            this.count = Util.Bit.BufferToUInt32(
-              payload.length > 4 ? payload.subarray(4, 6) : Util.Bit.BytesToBuffer([])
-            );
+            this.count = Util.Bit.BufferToUInt32(payload.length > 4 ? payload.subarray(4, 6) : Util.Bit.ToBuffer([]));
           } else if (this.foodGroup === FoodGroups.OSERVICE && this.type === Types.FIFTEEN) {
             const formattedScreenNameLength = Util.Bit.BufferToUInt8(payload.subarray(0, 1));
-            this.formattedScreenName = Util.Bit.BufferToString(payload.subarray(1, formattedScreenNameLength));
+            this.formattedScreenName = Util.Bit.ToString(payload.subarray(1, formattedScreenNameLength));
             this.warningLevel = Util.Bit.BufferToUInt16(
               payload.subarray(1 + formattedScreenNameLength, 2 + formattedScreenNameLength)
             );
@@ -135,15 +148,13 @@ class SNAC {
             //payload.splice(0, 4);
             this.interests = Interest.GetInterests(Util.Bit.BufferToBytes(payload.subarray(4)));
           } else if (this.foodGroup === FoodGroups.BUCP && this.type === Types.SEVEN) {
-            this.authKey = Util.Bit.BufferToString(
-              payload.subarray(2, Util.Bit.BufferToUInt16(payload.subarray(0, 2)))
-            );
+            this.authKey = Util.Bit.ToString(payload.subarray(2, Util.Bit.BufferToUInt16(payload.subarray(0, 2))));
           } else if (this.foodGroup === FoodGroups.OSERVICE && this.type === Types.TWENTYTHREE) {
             this.families = Family.GetFamilies(Util.Bit.BufferToBytes(payload));
           } else if (this.foodGroup === FoodGroups.OSERVICE && this.type === Types.EIGHT) {
             this.groups = Util.Bit.BufferToBytes(payload);
           } else if (this.foodGroup === FoodGroups.LOCATE && this.type === Types.ELEVEN) {
-            this.screenName = Util.Bit.BufferToString(
+            this.screenName = Util.Bit.ToString(
               payload.subarray(1, Util.Bit.BufferToUInt8(payload.subarray(0, 1)) + 1)
             );
           } else if (this.foodGroup === FoodGroups.OSERVICE && this.type === Types.FOUR) {
@@ -161,10 +172,10 @@ class SNAC {
           ) {
             this.items = SSI.GetSSI(Util.Bit.BufferToBytes(payload));
           } else if (this.foodGroup === FoodGroups.ICBM && this.type === Types.SIX) {
-            this.cookie = Util.Bit.BufferToString(payload.subarray(0, 8));
+            this.cookie = Util.Bit.ToString(payload.subarray(0, 8));
             this.channel = Util.Bit.BufferToUInt16(payload.subarray(8, 10));
             const screenNameLength = Util.Bit.BufferToUInt8(payload.subarray(10, 11));
-            this.screenName = Util.Bit.BufferToString(payload.subarray(11, 11 + screenNameLength));
+            this.screenName = Util.Bit.ToString(payload.subarray(11, 11 + screenNameLength));
             this.parameters = Parameter.GetParameters(
               this.foodGroup,
               this.type,
@@ -175,7 +186,7 @@ class SNAC {
             });
           } else if (this.foodGroup === FoodGroups.LOCATE && this.type === Types.TWENTYONE) {
             this.requestFlags = Util.Bit.BufferToBytes(payload.subarray(0, 4));
-            this.screenName = Util.Bit.BufferToString(
+            this.screenName = Util.Bit.ToString(
               payload.subarray(5, 5 + Util.Bit.BufferToUInt8(payload.subarray(4, 5)))
             );
           } else if (
@@ -183,9 +194,7 @@ class SNAC {
             (this.type === Types.EIGHT || this.type === Types.FOUR)
           ) {
             this.exchange = Util.Bit.BufferToUInt16(payload.subarray(0, 2));
-            this.cookie = Util.Bit.BufferToString(
-              payload.subarray(3, 2 + Util.Bit.BufferToUInt8(payload.subarray(2, 1)))
-            );
+            this.cookie = Util.Bit.ToString(payload.subarray(3, 2 + Util.Bit.BufferToUInt8(payload.subarray(2, 1))));
             this.instance = Util.Bit.BufferToUInt16(
               payload.subarray(3 + this.cookie.length, 3 + this.cookie.length + 2)
             );
@@ -198,25 +207,13 @@ class SNAC {
               Util.Bit.BufferToBytes(payload.subarray(2))
             );
           } else if (this.foodGroup === FoodGroups.CHAT && this.type === Types.FIVE) {
-            this.cookie = Util.Bit.BufferToString(payload.subarray(0, 8));
+            this.cookie = Util.Bit.ToString(payload.subarray(0, 8));
             this.channel = Util.Bit.BufferToUInt16(payload.subarray(8, 10));
             this.parameters = Parameter.GetParameters(this.foodGroup, this.type, Util.Bit.BufferToBytes(payload));
           } else {
             this.parameters = Parameter.GetParameters(this.foodGroup, this.type, Util.Bit.BufferToBytes(payload));
           }
         }
-      }
-      return;
-    } else if (typeof arg === 'object' && !Array.isArray(arg)) {
-      this.foodGroup = arg.foodGroup;
-      this.type = arg.type;
-      this.flags = arg.flags;
-      this.requestId = arg.requestId;
-      if (arg.parameters && Array.isArray(arg.parameters)) {
-        this.parameters = arg.parameters;
-      }
-      if (arg.extensions && typeof arg.extensions === 'object') {
-        extend(this, arg.extensions);
       }
       return;
     }
@@ -247,7 +244,7 @@ class SNAC {
         Util.Bit.UInt8ToBytes(this.formattedScreenName.length),
         Util.Bit.StringToBytes(this.formattedScreenName),
         Util.Bit.UInt16ToBytes(0),
-        Util.Bit.UInt16ToBytes(this.parameters.length)
+        Util.Bit.UInt16ToBytes(this.parameters?.length ?? 0)
       );
     }
     if (this.foodGroup === FoodGroups.BUDDY && this.type === Types.TWELVE) {
@@ -255,7 +252,7 @@ class SNAC {
         Util.Bit.UInt8ToBytes(this.formattedScreenName.length),
         Util.Bit.StringToBytes(this.formattedScreenName),
         Util.Bit.UInt16ToBytes(0),
-        Util.Bit.UInt16ToBytes(this.parameters.length)
+        Util.Bit.UInt16ToBytes(this.parameters?.length ?? 0)
       );
     }
     if (this.foodGroup === FoodGroups.ODIR && this.type === Types.FIVE) {
@@ -301,14 +298,14 @@ class SNAC {
       out = out.concat(Util.Bit.UInt16ToBytes(this.errorId));
     }
     if (this.foodGroup === FoodGroups.ADMIN && this.type === Types.THREE) {
-      out = out.concat(Util.Bit.UInt16ToBytes(this.permissions), Util.Bit.UInt16ToBytes(this.parameters.length));
+      out = out.concat(Util.Bit.UInt16ToBytes(this.permissions), Util.Bit.UInt16ToBytes(this.parameters?.length ?? 0));
     }
     if (this.foodGroup === FoodGroups.OSERVICE && this.type === Types.FIFTEEN) {
       out = out.concat(
         Util.Bit.UInt8ToBytes(this.formattedScreenName.length),
         Util.Bit.StringToBytes(this.formattedScreenName),
         Util.Bit.UInt16ToBytes(0),
-        Util.Bit.UInt16ToBytes(this.parameters.length)
+        Util.Bit.UInt16ToBytes(this.parameters?.length ?? 0)
       );
     }
     if (this.foodGroup === FoodGroups.CHAT && this.type === Types.THREE) {
@@ -316,7 +313,7 @@ class SNAC {
         Util.Bit.UInt8ToBytes(this.formattedScreenName.length),
         Util.Bit.StringToBytes(this.formattedScreenName),
         Util.Bit.UInt16ToBytes(0),
-        Util.Bit.UInt16ToBytes(this.parameters.length)
+        Util.Bit.UInt16ToBytes(this.parameters?.length ?? 0)
       );
     }
     if (this.foodGroup === FoodGroups.CHAT && this.type === Types.FOUR) {
@@ -324,7 +321,7 @@ class SNAC {
         Util.Bit.UInt8ToBytes(this.formattedScreenName.length),
         Util.Bit.StringToBytes(this.formattedScreenName),
         Util.Bit.UInt16ToBytes(0),
-        Util.Bit.UInt16ToBytes(this.parameters.length)
+        Util.Bit.UInt16ToBytes(this.parameters?.length ?? 0)
       );
     }
     if (this.foodGroup === FoodGroups.CHAT && this.type === Types.SIX) {
@@ -334,7 +331,7 @@ class SNAC {
       // FIXME: Figure out what this is.
       out = out.concat([0x00, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03]);
     }
-    if (this.parameters && this.parameters.length > 0) {
+    if (this.parameters && (this.parameters?.length ?? 0 > 0)) {
       out = out.concat(
         this.parameters
           .map(function (item) {
@@ -343,7 +340,7 @@ class SNAC {
           .flat()
       );
     }
-    return Util.Bit.BytesToBuffer(out);
+    return Util.Bit.ToBuffer(out);
   }
 }
 

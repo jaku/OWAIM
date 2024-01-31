@@ -10,10 +10,10 @@ class FLAP {
     this.channel = channel;
     this.sequence = sequence;
     this.size = size;
-    this.data = Util.Bit.BytesToBuffer(data);
+    this.data = Util.Bit.ToBuffer(data);
   }
   ToBuffer() {
-    return Util.Bit.BytesToBuffer([
+    return Util.Bit.ToBuffer([
       0x2a,
       ...Util.Bit.UInt8ToBytes(this.channel),
       ...Util.Bit.UInt16ToBytes(this.sequence),

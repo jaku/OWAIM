@@ -85,13 +85,13 @@ class User {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
-                    data: Util.Bit.BytesToBuffer(
+                    data: Util.Bit.ToBuffer(
                       Util.Bit.UInt32ToBytes(Util.Bit.UserClass(this.Class, this.AwayMessage.length ? true : false))
                     ),
                   }),
                   new Parameter({
                     type: ParameterTypes.THREE,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(this.SignedOnTimestamp.getTime())),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(this.SignedOnTimestamp.getTime())),
                   }),
                   new Parameter({
                     type: ParameterTypes.THIRTEEN,
@@ -99,7 +99,7 @@ class User {
                   }),
                   new Parameter({
                     type: ParameterTypes.FIFTEEN,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0)),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0)),
                   }),
                 ],
               }).ToBuffer()
@@ -122,7 +122,7 @@ class User {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                   }),
                 ],
               }).ToBuffer()
@@ -150,7 +150,7 @@ class User {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
-                    data: Util.Bit.BytesToBuffer(
+                    data: Util.Bit.ToBuffer(
                       Util.Bit.UInt32ToBytes(
                         Util.Bit.UserClass(
                           item.user.Class,
@@ -161,7 +161,7 @@ class User {
                   }),
                   new Parameter({
                     type: ParameterTypes.THREE,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(item.user.SignedOnTimestamp.getTime())),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(item.user.SignedOnTimestamp.getTime())),
                   }),
                   new Parameter({
                     type: ParameterTypes.THIRTEEN,
@@ -169,7 +169,7 @@ class User {
                   }),
                   new Parameter({
                     type: ParameterTypes.FIFTEEN,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt32ToBytes(0)),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0)),
                   }),
                 ],
               }).ToBuffer()
@@ -192,7 +192,7 @@ class User {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
-                    data: Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(0)),
+                    data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                   }),
                 ],
               }).ToBuffer()
@@ -206,7 +206,7 @@ class User {
     await db.updateAdminInfo(this.ID, this.FormattedScreenName, this.EmailAddress);
   }
   async addFeedbagItem(name: string, groupId: number, itemId: number, classId: number, attributes: number[]) {
-    return await db.addFeedbagItem(this.ID, name, groupId, itemId, classId, Util.Bit.BytesToBuffer(attributes));
+    return await db.addFeedbagItem(this.ID, name, groupId, itemId, classId, Util.Bit.ToBuffer(attributes));
   }
   async updateFeedbagItem(name: string, groupId: number, itemId: number, classId: number, attributes: number[]) {
     const b = await db.getBuddyList(this.ID);
@@ -214,14 +214,7 @@ class User {
       return item.ID == this.ID && item.GroupID == groupId && item.BuddyID == itemId && item.ClassID == classId;
     });
     if (c) {
-      const d = await db.updateFeedbagItem(
-        c.ID,
-        name,
-        c.GroupID,
-        c.BuddyID,
-        c.ClassID,
-        Util.Bit.BytesToBuffer(attributes)
-      );
+      const d = await db.updateFeedbagItem(c.ID, name, c.GroupID, c.BuddyID, c.ClassID, Util.Bit.ToBuffer(attributes));
       if (d) {
         return d;
       }
@@ -247,7 +240,7 @@ class User {
         c.GroupID,
         c.BuddyID,
         c.ClassID,
-        Util.Bit.BytesToBuffer(attributes)
+        Util.Bit.ToBuffer(attributes)
       );
       if (d) {
         return d;

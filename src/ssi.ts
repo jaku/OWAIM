@@ -15,7 +15,7 @@ class SSI {
     this.attributes = args.attributes;
   }
   ToBuffer() {
-    return Util.Bit.BytesToBuffer([
+    return Util.Bit.ToBuffer([
       ...Util.Bit.UInt16ToBytes(this.name.length),
       ...Util.Bit.StringToBytes(this.name),
       ...Util.Bit.UInt16ToBytes(this.groupId),
@@ -26,11 +26,11 @@ class SSI {
     ]);
   }
   static GetSSI(bytes: number[]) {
-    let buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.ToBuffer(bytes);
     const out: SSI[] = [];
     while (buffer.length > 0) {
       const length = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
-      const name = Util.Bit.BufferToString(buffer.subarray(2, length)).toString();
+      const name = Util.Bit.ToString(buffer.subarray(2, length)).toString();
       const groupId = Util.Bit.BufferToUInt16(buffer.subarray(2 + length, 2));
       const itemId = Util.Bit.BufferToUInt16(buffer.subarray(4 + length, 2));
       const classId = Util.Bit.BufferToUInt16(buffer.subarray(6 + length, 2));

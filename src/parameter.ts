@@ -54,14 +54,14 @@ class Parameter {
       data = this.data;
     }
     return Buffer.concat([
-      Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(this.type)),
-      Util.Bit.BytesToBuffer(Util.Bit.UInt16ToBytes(this.length)),
+      Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(this.type)),
+      Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(this.length)),
       data,
     ]);
   }
 
   static GetParameters(snacFoodGroup: SNACFoodGroups, snacType: SNACTypes, bytes: number[]) {
-    let buffer = Util.Bit.BytesToBuffer(bytes);
+    let buffer = Util.Bit.ToBuffer(bytes);
     const out: Parameter[] = [];
     while (buffer.length >= 4) {
       const type: ParameterTypes = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
