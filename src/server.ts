@@ -138,8 +138,7 @@ const authServer = Net.createServer((socket) => {
         return;
       }
       const size = Util.Bit.BufferToUInt16(session.buffer.subarray(4, 6));
-      console.log('size', session.buffer.length, size);
-      if (session.buffer.length >= 6 + size) {
+      if (session.buffer.length >= size + 6) {
         const header = session.buffer.subarray(0, 6);
         const messageData = session.buffer.subarray(6, 6 + size);
 

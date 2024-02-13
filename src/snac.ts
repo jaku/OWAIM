@@ -183,60 +183,69 @@ class SNAC {
     }
 
     const ret: SNACPayload = this.payload;
+    let payloadPosition = 0;
 
     switch (this.header.foodGroup) {
       case FoodGroups.BUCP:
         if (this.header.type === Types.SEVEN) {
-          ret.authKey = Util.Bit.ToString(payload.subarray(2, Util.Bit.BufferToUInt16(payload.subarray(0, 2))));
+          const keyLength = Util.Bit.BufferToUInt16(payload, 2);
+          payloadPosition += 2;
+          ret.authKey = Util.Bit.ToString(payload, payloadPosition, keyLength);
         }
         break;
       case FoodGroups.CHAT_NAV:
         if (this.header.type === Types.FOUR || this.header.type === Types.EIGHT) {
-          ret.exchange = Util.Bit.BufferToUInt16(payload.subarray(0, 2));
-          ret.cookie = Util.Bit.ToString(payload.subarray(3, 2 + Util.Bit.BufferToUInt8(payload.subarray(2, 1))));
-          ret.instance = Util.Bit.BufferToUInt16(payload.subarray(3 + ret.cookie.length, 3 + ret.cookie.length + 2));
-          ret.detailLevel = Util.Bit.BufferToUInt8(payload.subarray(5 + ret.cookie.length, 5 + ret.cookie.length + 1));
-          ret.parameters = Parameter.GetParameters(
-            this.header.foodGroup,
-            this.header.type,
-            Util.Bit.BufferToBytes(payload.subarray(2))
-          );
+          ret.exchange = Util.Bit.BufferToUInt16(payload, payloadPosition);
+          payloadPosition += 2;
+          const cookieLength = Util.Bit.BufferToUInt8(payload, payloadPosition);
+          payloadPosition += 1;
+          ret.cookie = Util.Bit.ToString(payload, payloadPosition, cookieLength);
+          payloadPosition += cookieLength;
+          ret.instance = Util.Bit.BufferToUInt16(payload, payloadPosition);
+          payloadPosition += 2;
+          ret.detailLevel = Util.Bit.BufferToUInt8(payload, payloadPosition);
+          payloadPosition += 1;
+          const parameters = Util.Bit.BufferToBytes(payload, payloadPosition);
+          ret.parameters = Parameter.GetParameters(this.header.foodGroup, this.header.type, parameters);
+          payloadPosition += parameters.length;
         }
         break;
       case FoodGroups.CHAT:
         if (this.header.type === Types.FIVE) {
-          ret.cookie = Util.Bit.ToString(payload.subarray(0, 8));
-          ret.channel = Util.Bit.BufferToUInt16(payload.subarray(8, 10));
-          ret.parameters = Parameter.GetParameters(
-            this.header.foodGroup,
-            this.header.type,
-            Util.Bit.BufferToBytes(payload)
-          );
+          ret.cookie = Util.Bit.ToString(payload, payloadPosition, 8);
+          payloadPosition += 8;
+          ret.channel = Util.Bit.BufferToUInt16(payload, payloadPosition);
+          payloadPosition += 2;
+          const parameters = Util.Bit.BufferToBytes(payload, payloadPosition);
+          ret.parameters = Parameter.GetParameters(this.header.foodGroup, this.header.type, parameters);
+          payloadPosition += parameters.length;
         }
         break;
       case FoodGroups.FEEDBAG:
         if (this.header.type === Types.FIVE) {
-          ret.date = new Date(Util.Bit.BufferToUInt32(payload.subarray(0, 4)));
-          ret.count = Util.Bit.BufferToUInt32(payload.length > 4 ? payload.subarray(4, 6) : Util.Bit.ToBuffer([]));
+          ret.date = new Date(Util.Bit.BufferToUInt32(payload, payloadPosition));
+          ret.count = payload.length > 4 ? Util.Bit.BufferToUInt16(payload, payloadPosition) : 0;
         } else if (
           this.header.type === Types.EIGHT ||
           this.header.type === Types.NINE ||
           this.header.type === Types.TEN
         ) {
-          ret.items = SSI.GetSSI(Util.Bit.BufferToBytes(payload));
+          ret.items = SSI.GetSSI(Util.Bit.BufferToBytes(payload, payloadPosition));
         }
         break;
       case FoodGroups.ICBM:
         if (this.header.type === Types.SIX) {
-          ret.cookie = Util.Bit.ToString(payload.subarray(0, 8));
-          ret.channel = Util.Bit.BufferToUInt16(payload.subarray(8, 10));
-          const screenNameLength = Util.Bit.BufferToUInt8(payload.subarray(10, 11));
-          ret.screenName = Util.Bit.ToString(payload.subarray(11, 11 + screenNameLength));
-          ret.parameters = Parameter.GetParameters(
-            this.header.foodGroup,
-            this.header.type,
-            Util.Bit.BufferToBytes(payload.subarray(11 + screenNameLength))
-          );
+          ret.cookie = Util.Bit.ToString(payload, payloadPosition);
+          payloadPosition += 8;
+          ret.channel = Util.Bit.BufferToUInt16(payload, payloadPosition);
+          payloadPosition += 2;
+          const screenNameLength = Util.Bit.BufferToUInt8(payload, payloadPosition);
+          payloadPosition += 1;
+          ret.screenName = Util.Bit.ToString(payload, payloadPosition, screenNameLength);
+          payloadPosition += screenNameLength;
+          const parameters = Util.Bit.BufferToBytes(payload, payloadPosition);
+          ret.parameters = Parameter.GetParameters(this.header.foodGroup, this.header.type, parameters);
+          payloadPosition += parameters.length;
           ret.autoResponse = ret.parameters.find((item) => {
             return item.type === ParameterTypes.FOUR;
           });
@@ -244,52 +253,55 @@ class SNAC {
         break;
       case FoodGroups.LOCATE:
         if (this.header.type === Types.ELEVEN) {
-          ret.screenName = Util.Bit.ToString(payload.subarray(1, Util.Bit.BufferToUInt8(payload.subarray(0, 1)) + 1));
+          const screenNameLength = Util.Bit.BufferToUInt8(payload, payloadPosition);
+          payloadPosition += 1;
+          ret.screenName = Util.Bit.ToString(payload, payloadPosition, screenNameLength);
         } else if (this.header.type === Types.FIFTEEN) {
           //payload.splice(0, 4);
-          ret.interests = Interest.GetInterests(Util.Bit.BufferToBytes(payload.subarray(4)));
+          ret.interests = Interest.GetInterests(Util.Bit.BufferToBytes(payload, payloadPosition));
         } else if (this.header.type === Types.TWENTYONE) {
-          ret.requestFlags = Util.Bit.BufferToBytes(payload.subarray(0, 4));
-          ret.screenName = Util.Bit.ToString(payload.subarray(5, 5 + Util.Bit.BufferToUInt8(payload.subarray(4, 5))));
+          ret.requestFlags = Util.Bit.BufferToBytes(payload, payloadPosition, 4);
+          payloadPosition += 4;
+          const screenNameLength = Util.Bit.BufferToUInt8(payload, payloadPosition);
+          payloadPosition += 1;
+          ret.screenName = Util.Bit.ToString(payload, payloadPosition, screenNameLength);
+          payloadPosition += screenNameLength;
         }
         break;
       case FoodGroups.OSERVICE:
         if (this.header.type === Types.FOUR) {
-          ret.groupId = Util.Bit.BufferToUInt16(payload.subarray(0, 2));
-          if (payload.length > 0) {
-            ret.parameters = Parameter.GetParameters(
-              this.header.foodGroup,
-              this.header.type,
-              Util.Bit.BufferToBytes(payload.subarray(2))
-            );
+          ret.groupId = Util.Bit.BufferToUInt16(payload, payloadPosition);
+          payloadPosition += 2;
+          if (payload.length > payloadPosition) {
+            const parameters = Util.Bit.BufferToBytes(payload, payloadPosition);
+            ret.parameters = Parameter.GetParameters(this.header.foodGroup, this.header.type, parameters);
+            payloadPosition += parameters.length;
           }
         } else if (this.header.type === Types.EIGHT) {
-          ret.groups = Util.Bit.BufferToBytes(payload);
+          ret.groups = Util.Bit.BufferToBytes(payload, payloadPosition);
+          payloadPosition += ret.groups.length;
         } else if (this.header.type === Types.FIFTEEN) {
-          const formattedScreenNameLength = Util.Bit.BufferToUInt8(payload.subarray(0, 1));
-          ret.formattedScreenName = Util.Bit.ToString(payload.subarray(1, formattedScreenNameLength));
-          ret.warningLevel = Util.Bit.BufferToUInt16(
-            payload.subarray(1 + formattedScreenNameLength, 2 + formattedScreenNameLength)
-          );
-          ret.parameters = Parameter.GetParameters(
-            this.header.foodGroup,
-            this.header.type,
-            Util.Bit.BufferToBytes(payload.subarray(1 + formattedScreenNameLength + 2))
-          );
+          const formattedScreenNameLength = Util.Bit.BufferToUInt8(payload, payloadPosition);
+          ret.formattedScreenName = Util.Bit.ToString(payload, payloadPosition, formattedScreenNameLength);
+          payloadPosition += formattedScreenNameLength;
+          ret.warningLevel = Util.Bit.BufferToUInt16(payload, payloadPosition);
+          payloadPosition += 2;
+          const parameters = Util.Bit.BufferToBytes(payload, payloadPosition);
+          ret.parameters = Parameter.GetParameters(this.header.foodGroup, this.header.type, parameters);
+          payloadPosition += parameters.length;
         } else if (this.header.type === Types.SEVENTEEN) {
-          ret.idle = Util.Bit.BufferToUInt32(payload.subarray(0, 4));
+          ret.idle = Util.Bit.BufferToUInt32(payload, payloadPosition);
         } else if (this.header.type === Types.TWENTYTHREE) {
-          ret.families = Family.GetFamilies(Util.Bit.BufferToBytes(payload));
+          ret.families = Family.GetFamilies(Util.Bit.BufferToBytes(payload, payloadPosition));
         }
         break;
-      default:
-        ret.parameters = Parameter.GetParameters(
-          this.header.foodGroup,
-          this.header.type,
-          Util.Bit.BufferToBytes(payload)
-        );
+      default: {
+        const parameters = Util.Bit.BufferToBytes(payload, payloadPosition);
+        ret.parameters = Parameter.GetParameters(this.header.foodGroup, this.header.type, parameters);
+        payloadPosition += parameters.length;
 
         break;
+      }
     }
 
     return ret;

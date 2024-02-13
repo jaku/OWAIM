@@ -32,9 +32,6 @@ const Bit = {
       return Buffer.from('');
     }
   },
-  StringToBytes: (str: string) => {
-    return Bit.BufferToBytes(Bit.ToBuffer(str));
-  },
   ToString: (data: Buffer | number | number[] | string, position: number = 0, length?: number): string => {
     if (typeof data === 'string') {
       return data;
@@ -48,9 +45,6 @@ const Bit = {
       return '';
     }
   },
-  BufferToBytes: (buffer: Buffer, position: number = 0, length?: number): number[] => {
-    return buffer.subarray(position, length ?? buffer.length).toJSON().data;
-  },
   BufferToUInt8: (buffer: Buffer, position: number = 0) => {
     return buffer.readUInt8(position);
   },
@@ -59,6 +53,12 @@ const Bit = {
   },
   BufferToUInt32: (buffer: Buffer, position: number = 0) => {
     return buffer.readUInt32BE(position);
+  },
+  StringToBytes: (str: string) => {
+    return Bit.BufferToBytes(Bit.ToBuffer(str));
+  },
+  BufferToBytes: (buffer: Buffer, position: number = 0, length?: number): number[] => {
+    return buffer.subarray(position, length ?? buffer.length).toJSON().data;
   },
   UInt8ToBytes: (num: number) => {
     const b = Buffer.alloc(1);
@@ -74,14 +74,6 @@ const Bit = {
     const b = Buffer.alloc(4);
     b.writeUInt32BE(num);
     return b.toJSON().data;
-  },
-  BufferToChunkArray: (buffer: Buffer, length: number, formatter: (arg0: Buffer) => number[]) => {
-    return Array(Math.ceil(buffer.length / length))
-      .map((_, index) => index * length)
-      .map((begin) => buffer.subarray(begin, begin + length))
-      .map((array) => {
-        return formatter ? formatter(array) : array;
-      });
   },
 
   UserClass: (userClass: number, away: boolean) => {

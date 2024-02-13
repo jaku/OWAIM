@@ -61,20 +61,24 @@ class Parameter {
   }
 
   static GetParameters(snacFoodGroup: SNACFoodGroups, snacType: SNACTypes, bytes: number[]) {
-    let buffer = Util.Bit.ToBuffer(bytes);
+    const buffer = Util.Bit.ToBuffer(bytes);
     const out: Parameter[] = [];
+
+    let bufferPosition = 0;
     while (buffer.length >= 4) {
-      const type: ParameterTypes = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
-      const length = Util.Bit.BufferToUInt16(buffer.subarray(2, 4));
-      const payload = buffer.subarray(4, 4 + length);
+      const type: ParameterTypes = Util.Bit.BufferToUInt16(buffer, bufferPosition);
+      bufferPosition += 2;
+      const length = Util.Bit.BufferToUInt16(buffer, bufferPosition);
+      bufferPosition += 2;
+      const payload = Util.Bit.ToBuffer(buffer, bufferPosition, length);
+      bufferPosition += length;
+
       if (snacFoodGroup === SNACFoodGroups.ICBM && snacType === SNACTypes.SIX && type === ParameterTypes.TWO) {
         const fragments = Fragment.GetFragments(Util.Bit.BufferToBytes(payload));
         out.push(new Parameter({ type: type, data: fragments }));
       } else {
         out.push(new Parameter({ type: type, data: payload }));
       }
-
-      buffer = buffer.subarray(4 + length);
     }
     return out;
   }

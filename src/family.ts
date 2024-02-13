@@ -15,18 +15,21 @@ class Family {
     ]);
   }
   static GetFamilies(bytes: number[]) {
-    let buffer = Util.Bit.ToBuffer(bytes);
+    const buffer = Util.Bit.ToBuffer(bytes);
     const out: Family[] = [];
+    let bufferPosition = 0;
     while (buffer.length >= 4) {
-      const type = Util.Bit.BufferToUInt16(buffer.subarray(0, 2));
-      const version = Util.Bit.BufferToUInt16(buffer.subarray(2, 4));
+      const type = Util.Bit.BufferToUInt16(buffer, bufferPosition);
+      bufferPosition += 2;
+      const version = Util.Bit.BufferToUInt16(buffer, bufferPosition);
+      bufferPosition += 2;
+
       out.push(
         new Family({
           type: type,
           version: version,
         })
       );
-      buffer = buffer.subarray(4);
     }
     return out;
   }

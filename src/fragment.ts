@@ -22,13 +22,18 @@ class Fragment {
   }
 
   static GetFragments(bytes: number[]): Fragment[] {
-    let buffer = Util.Bit.ToBuffer(bytes);
+    const buffer = Util.Bit.ToBuffer(bytes);
     const out: Fragment[] = [];
+    let bufferPosition = 0;
     while (buffer.length >= 4) {
-      const fragId = Util.Bit.BufferToUInt8(buffer.subarray(0, 1));
-      const fragVersion = Util.Bit.BufferToUInt8(buffer.subarray(1, 2));
-      const length = Util.Bit.BufferToUInt16(buffer.subarray(2, 4));
-      const payload = buffer.subarray(4, 4 + length);
+      const fragId = Util.Bit.BufferToUInt8(buffer, bufferPosition);
+      bufferPosition += 1;
+      const fragVersion = Util.Bit.BufferToUInt8(buffer, bufferPosition);
+      bufferPosition += 1;
+      const length = Util.Bit.BufferToUInt16(buffer, bufferPosition);
+      bufferPosition += 2;
+      const payload = Util.Bit.ToBuffer(buffer, bufferPosition, length);
+      bufferPosition += length;
 
       out.push(
         new Fragment({
@@ -38,7 +43,6 @@ class Fragment {
           data: payload,
         })
       );
-      buffer = buffer.subarray(length);
     }
 
     return out;
