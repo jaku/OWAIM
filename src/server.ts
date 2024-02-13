@@ -71,7 +71,16 @@ const _sessions = new SessionManager();
 
 const _chatrooms = new ChatManager();
 
-function SendData(session: Session, requestId: number, channel: number, bytes: number[], echo: boolean = false) {
+function SendData(session: Session, requestId: number, channel: number, snac: SNAC | number[], extra: number[] = []) {
+  let bytes: number[];
+  if (snac instanceof SNAC) {
+    bytes = [...Util.Bit.BufferToBytes(snac.ToBuffer()), ...extra];
+  } else if (snac instanceof Array) {
+    bytes = [...snac, ...extra];
+  } else {
+    throw new Error("Invalid 'snac' type. Must be SNAC or number[].");
+  }
+
   console.log('sending bytes', bytes);
   session.sequence++;
   if (session.sequence > 65535) {
@@ -82,9 +91,9 @@ function SendData(session: Session, requestId: number, channel: number, bytes: n
     bytes.splice(6, 4, ...Util.Bit.UInt32ToBytes(requestId));
   }
   const packet = new FLAP(channel, session.sequence, bytes.length, bytes);
-  if (echo) {
-    console.log('packet', JSON.stringify(Util.Bit.BufferToBytes(packet.ToBuffer())));
-  }
+
+  console.log('packet', JSON.stringify(Util.Bit.BufferToBytes(packet.ToBuffer())));
+
   session.socket.write(packet.ToBuffer());
 }
 const authServer = Net.createServer((socket) => {
@@ -143,7 +152,7 @@ const authServer = Net.createServer((socket) => {
     return;
   });
 
-  SendData(session, 0, 1, Util.Constants._FLAP_VERSION, true);
+  SendData(session, 0, 1, Util.Constants._FLAP_VERSION);
 
   async function ProcessRequest(session: Session, header: Buffer, data: Buffer) {
     // get FLAP header.
@@ -157,13 +166,13 @@ const authServer = Net.createServer((socket) => {
     // expect: 2, channel: SNAC
     if (flap.channel === 2) {
       // get SNAC packet.
-      const snac = new SNAC(data);
+      const snac = new SNAC(data.subarray(0, 10), data.subarray(10));
       console.log('SNAC', Util.Bit.BufferToBytes(snac.ToBuffer()));
 
       // expect: 0x00 0x17 0x00 0x06
       // method: auth key request
-      if (snac.foodGroup === FoodGroups.BUCP && snac.type === SNACTypes.SIX) {
-        const screenName = snac.parameters?.find((item: { type: ParameterTypes }) => {
+      if (snac.header.foodGroup === FoodGroups.BUCP && snac.header.type === SNACTypes.SIX) {
+        const screenName = snac.payload.parameters?.find((item: { type: ParameterTypes }) => {
           return item.type === ParameterTypes.ONE;
         });
         if (screenName) {
@@ -174,12 +183,14 @@ const authServer = Net.createServer((socket) => {
               session,
               0,
               2,
-              Util.Bit.BufferToBytes(
-                new SNAC({
+              new SNAC(
+                {
                   foodGroup: FoodGroups.BUCP,
                   type: SNACTypes.THREE,
                   flags: 0,
                   requestId: 0,
+                },
+                {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
@@ -194,7 +205,7 @@ const authServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(4)),
                     }),
                   ],
-                }).ToBuffer()
+                }
               )
             );
             return;
@@ -206,7 +217,7 @@ const authServer = Net.createServer((socket) => {
           //         foodGroup: SNACFoodGroups.TWENTYTHREE,
           //         type: SNACTypes.THREE,
           //         flags: 0,
-          //         requestId: 0,
+          //         requestId: 0,},{
           //         parameters: [
           //             new Parameter({ type: ParameterTypes.ONE, data: screenName.data }),
           //             new Parameter({ type: ParameterTypes.FOUR, data: Util.Bit.BufferBytes('https://www.lwrca.se/owaim/unregistered') }),
@@ -221,12 +232,14 @@ const authServer = Net.createServer((socket) => {
               session,
               0,
               2,
-              Util.Bit.BufferToBytes(
-                new SNAC({
+              new SNAC(
+                {
                   foodGroup: FoodGroups.BUCP,
                   type: SNACTypes.THREE,
                   flags: 0,
                   requestId: 0,
+                },
+                {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
@@ -241,7 +254,7 @@ const authServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(8)),
                     }),
                   ],
-                }).ToBuffer()
+                }
               )
             );
             return;
@@ -252,12 +265,14 @@ const authServer = Net.createServer((socket) => {
               session,
               0,
               2,
-              Util.Bit.BufferToBytes(
-                new SNAC({
+              new SNAC(
+                {
                   foodGroup: FoodGroups.BUCP,
                   type: SNACTypes.THREE,
                   flags: 0,
                   requestId: 0,
+                },
+                {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
@@ -272,7 +287,7 @@ const authServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(17)),
                     }),
                   ],
-                }).ToBuffer()
+                }
               )
             );
             return;
@@ -282,16 +297,19 @@ const authServer = Net.createServer((socket) => {
             session,
             0,
             2,
-            Util.Bit.BufferToBytes(
-              new SNAC({
+            new SNAC(
+              {
                 foodGroup: FoodGroups.BUCP,
                 type: SNACTypes.SEVEN,
                 flags: 0,
                 requestId: 0,
+              },
+              {
+                parameters: [],
                 extensions: {
                   authKey: session.ticket,
                 },
-              }).ToBuffer()
+              }
             )
           );
           return;
@@ -301,12 +319,14 @@ const authServer = Net.createServer((socket) => {
           session,
           0,
           2,
-          Util.Bit.BufferToBytes(
-            new SNAC({
+          new SNAC(
+            {
               foodGroup: FoodGroups.BUCP,
               type: SNACTypes.THREE,
               flags: 0,
               requestId: 0,
+            },
+            {
               parameters: [
                 new Parameter({
                   type: ParameterTypes.ONE,
@@ -321,7 +341,7 @@ const authServer = Net.createServer((socket) => {
                   data: Util.Bit.ToBuffer(Util.Bit.UInt8ToBytes(7)),
                 }),
               ],
-            }).ToBuffer()
+            }
           )
         );
         return;
@@ -329,11 +349,11 @@ const authServer = Net.createServer((socket) => {
 
       // expect: 0x00 0x17 0x00 0x02
       // method: auth
-      if (snac.foodGroup === FoodGroups.BUCP && snac.type === SNACTypes.TWO) {
-        const screenName = snac.parameters?.find((item) => {
+      if (snac.header.foodGroup === FoodGroups.BUCP && snac.header.type === SNACTypes.TWO) {
+        const screenName = snac.payload.parameters?.find((item) => {
           return item.type === ParameterTypes.ONE;
         });
-        const roastedPassword = snac.parameters?.find((item) => {
+        const roastedPassword = snac.payload.parameters?.find((item) => {
           return item.type === ParameterTypes.THIRTYSEVEN;
         });
         if (screenName) {
@@ -344,12 +364,14 @@ const authServer = Net.createServer((socket) => {
               session,
               0,
               2,
-              Util.Bit.BufferToBytes(
-                new SNAC({
+              new SNAC(
+                {
                   foodGroup: FoodGroups.BUCP,
                   type: SNACTypes.THREE,
                   flags: 0,
                   requestId: 0,
+                },
+                {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
@@ -364,7 +386,7 @@ const authServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(4)),
                     }),
                   ],
-                }).ToBuffer()
+                }
               )
             );
             return;
@@ -391,12 +413,14 @@ const authServer = Net.createServer((socket) => {
               session,
               0,
               2,
-              Util.Bit.BufferToBytes(
-                new SNAC({
+              new SNAC(
+                {
                   foodGroup: FoodGroups.BUCP,
                   type: SNACTypes.THREE,
                   flags: 0,
                   requestId: 0,
+                },
+                {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
@@ -411,7 +435,7 @@ const authServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(8)),
                     }),
                   ],
-                }).ToBuffer()
+                }
               )
             );
             return;
@@ -422,12 +446,14 @@ const authServer = Net.createServer((socket) => {
               session,
               0,
               2,
-              Util.Bit.BufferToBytes(
-                new SNAC({
+              new SNAC(
+                {
                   foodGroup: FoodGroups.BUCP,
                   type: SNACTypes.THREE,
                   flags: 0,
                   requestId: 0,
+                },
+                {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
@@ -442,7 +468,7 @@ const authServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(17)),
                     }),
                   ],
-                }).ToBuffer()
+                }
               )
             );
             return;
@@ -461,12 +487,14 @@ const authServer = Net.createServer((socket) => {
               session,
               0,
               2,
-              Util.Bit.BufferToBytes(
-                new SNAC({
+              new SNAC(
+                {
                   foodGroup: FoodGroups.BUCP,
                   type: SNACTypes.THREE,
                   flags: 0,
                   requestId: 0,
+                },
+                {
                   parameters: [
                     new Parameter({
                       type: ParameterTypes.ONE,
@@ -489,7 +517,7 @@ const authServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer('https://www.lwrca.se/owaim/change-password'),
                     }),
                   ],
-                }).ToBuffer()
+                }
               )
             );
             return;
@@ -499,12 +527,14 @@ const authServer = Net.createServer((socket) => {
             session,
             0,
             2,
-            Util.Bit.BufferToBytes(
-              new SNAC({
+            new SNAC(
+              {
                 foodGroup: FoodGroups.BUCP,
                 type: SNACTypes.THREE,
                 flags: 0,
                 requestId: 0,
+              },
+              {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
@@ -519,7 +549,7 @@ const authServer = Net.createServer((socket) => {
                     data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(5)),
                   }),
                 ],
-              }).ToBuffer()
+              }
             )
           );
         } else {
@@ -528,12 +558,14 @@ const authServer = Net.createServer((socket) => {
             session,
             0,
             2,
-            Util.Bit.BufferToBytes(
-              new SNAC({
+            new SNAC(
+              {
                 foodGroup: FoodGroups.BUCP,
                 type: SNACTypes.THREE,
                 flags: 0,
                 requestId: 0,
+              },
+              {
                 parameters: [
                   /*
                 new Parameter({
@@ -550,7 +582,7 @@ const authServer = Net.createServer((socket) => {
                     data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(7)),
                   }),
                 ],
-              }).ToBuffer()
+              }
             )
           );
         }
@@ -587,7 +619,7 @@ function overwriteSnacData(snac: SNAC, hexString: string) {
   const hexBuffer = hexString.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || [];
 
   // Iterate through the 'parameters' array in the 'snac' object
-  snac.parameters?.forEach((parameter) => {
+  snac.payload.parameters?.forEach((parameter) => {
     // Only overwrite 'data' for parameters with 'length' of 1 or more
     if (parameter.length > 0) {
       parameter.data = Util.Bit.ToBuffer(hexBuffer);
@@ -677,18 +709,21 @@ const bosServer = Net.createServer((socket) => {
                 session,
                 0,
                 2,
-                Util.Bit.BufferToBytes(
-                  new SNAC({
+                new SNAC(
+                  {
                     foodGroup: FoodGroups.OSERVICE,
                     type: SNACTypes.THREE,
                     flags: 0,
                     requestId: 0,
+                  },
+                  {
+                    parameters: [],
                     extensions: {
                       families: [1, 2, 3, 4, 6, 7, 8, 9, 16, 10, 24, 11, 19, 21, 34, 37, 15].map(
                         (family) => new Family({ type: family })
                       ),
                     },
-                  }).ToBuffer()
+                  }
                 )
               );
               return;
@@ -705,11 +740,11 @@ const bosServer = Net.createServer((socket) => {
       case 2: {
         // SNAC
         // get SNAC packet
-        const snac = new SNAC(data);
-        switch (snac.foodGroup) {
+        const snac = new SNAC(data.subarray(0, 10), data.subarray(10));
+        switch (snac.header.foodGroup) {
           case FoodGroups.OSERVICE: {
             // generic service controls
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: {
                 // service client ready.
                 if (session.user) {
@@ -725,12 +760,12 @@ const bosServer = Net.createServer((socket) => {
                 if (!session.services) {
                   session.services = [];
                 }
-                const extCookie = snac.parameters
-                  ? snac.parameters?.find((item) => {
+                const extCookie = snac.payload.parameters
+                  ? snac.payload.parameters?.find((item) => {
                       return item.type === ParameterTypes.ONE;
                     })
                   : undefined;
-                const serviceSession: SessionService = { groupId: snac.groupId, cookie: '' };
+                const serviceSession: SessionService = { groupId: snac.payload.groupId, cookie: '' };
                 if (extCookie) {
                   const dataExtCookie = extCookie.data as Buffer;
                   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -742,17 +777,17 @@ const bosServer = Net.createServer((socket) => {
                   serviceSession.cookie = session.user?.ScreenName ?? '';
                 }
                 //session.services.push(serviceSession);
-                // SendData(session, snac.requestId, 2, new SNAC({
+                // SendData(session, snac.header.requestId, 2, new SNAC({
                 //     foodGroup: FoodGroups.ONE,
                 //     type: Types.FIVE,
                 //     flags: 0,
-                //     requestId: snac.requestId,
+                //     requestId: snac.header.requestId,
                 //     parameters: [
-                //         new Parameter({ type: 0x0d, data: snac.groupId }),
+                //         new Parameter({ type: 0x0d, data: snac.payload.groupId }),
                 //         new Parameter({ type: 0x05, data: Util.Bit.BufferBytes([_options.ip, _options.aosPort].join(':')) }),
                 //         new Parameter({ type: 0x06, data: Util.Bit.BufferBytes(serviceSession.cookie) })
                 //     ]
-                // }).ToBytes());
+                // }));
 
                 return;
               }
@@ -760,16 +795,18 @@ const bosServer = Net.createServer((socket) => {
                 // rate limits request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.OSERVICE,
                       type: SNACTypes.SEVEN,
                       flags: 0,
                       requestId: 0,
-                    }).ToBuffer()
-                  ).concat([
+                    },
+                    { parameters: [] }
+                  ),
+                  [
                     // FIXME: Figure out what this is.
                     0x00, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x09, 0xc4, 0x00, 0x00, 0x07, 0xd0,
                     0x00, 0x00, 0x05, 0xdc, 0x00, 0x00, 0x03, 0x20, 0x00, 0x00, 0x16, 0xdc, 0x00, 0x00, 0x17, 0x70,
@@ -823,7 +860,7 @@ const bosServer = Net.createServer((socket) => {
                     0x07, 0x00, 0x09, 0x00, 0x08, 0x00, 0x03, 0x00, 0x02, 0x00, 0x02, 0x00, 0x05, 0x00, 0x04, 0x00,
                     0x06, 0x00, 0x04, 0x00, 0x02, 0x00, 0x02, 0x00, 0x09, 0x00, 0x02, 0x00, 0x0b, 0x00, 0x05, 0x00,
                     0x00,
-                  ])
+                  ]
                 );
                 return;
               }
@@ -837,12 +874,14 @@ const bosServer = Net.createServer((socket) => {
                   session,
                   0,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.OSERVICE,
                       type: SNACTypes.FIFTEEN,
                       flags: 0,
                       requestId: 0,
+                    },
+                    {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.ONE,
@@ -894,7 +933,7 @@ const bosServer = Net.createServer((socket) => {
                       extensions: {
                         formattedScreenName: session.user?.FormattedScreenName,
                       },
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
@@ -905,12 +944,15 @@ const bosServer = Net.createServer((socket) => {
                   session,
                   0,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.OSERVICE,
                       type: SNACTypes.TWENTYFOUR,
                       flags: 0,
                       requestId: 0,
+                    },
+                    {
+                      parameters: [],
                       extensions: {
                         families: [
                           new Family({ type: 1, version: 3 }),
@@ -929,7 +971,7 @@ const bosServer = Net.createServer((socket) => {
                           new Family({ type: 16, version: 1 }),
                         ],
                       },
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
@@ -943,19 +985,21 @@ const bosServer = Net.createServer((socket) => {
           }
           case FoodGroups.LOCATE: {
             // location services
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: {
                 // location rights request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.LOCATE,
                       type: SNACTypes.THREE,
                       flags: 0,
-                      requestId: snac.requestId,
+                      requestId: snac.header.requestId,
+                    },
+                    {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.ONE,
@@ -978,14 +1022,14 @@ const bosServer = Net.createServer((socket) => {
                           data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(4096)),
                         }),
                       ],
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
               }
               case SNACTypes.FOUR: {
                 // user directory location information update request.
-                snac.parameters?.forEach((item) => {
+                snac.payload.parameters?.forEach((item) => {
                   if (session.user) {
                     switch (item.type) {
                       case ParameterTypes.ONE:
@@ -1019,16 +1063,18 @@ const bosServer = Net.createServer((socket) => {
                 // just ack. maybe we'll record directory later.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.LOCATE,
                       type: SNACTypes.TEN,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(Util.Bit.UInt16ToBytes(1))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  Util.Bit.UInt16ToBytes(1)
                 );
                 return;
               }
@@ -1036,16 +1082,18 @@ const bosServer = Net.createServer((socket) => {
                 // directory information request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.LOCATE,
                       type: SNACTypes.TWELVE,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(Util.Bit.UInt16ToBytes(1), Util.Bit.UInt16ToBytes(0))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  [...Util.Bit.UInt16ToBytes(1), ...Util.Bit.UInt16ToBytes(0)]
                 );
                 return;
               }
@@ -1054,23 +1102,25 @@ const bosServer = Net.createServer((socket) => {
                 // just ack. maybe we'll record directory interests later.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.LOCATE,
                       type: SNACTypes.FIFTEEN,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(Util.Bit.UInt16ToBytes(1))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  Util.Bit.UInt16ToBytes(1)
                 );
                 return;
               }
               case SNACTypes.TWENTYONE: {
                 // locate directory info request.
                 const userInfo = _sessions.item({
-                  screenName: Util.Strings.TrimData(snac.screenName),
+                  screenName: Util.Strings.TrimData(snac.payload.screenName),
                 });
                 if (userInfo?.user) {
                   const flagParameters = [
@@ -1096,7 +1146,10 @@ const bosServer = Net.createServer((socket) => {
                       data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(userInfo.user.SignedOnTimestamp.getTime())),
                     }),
                   ];
-                  if (Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.requestFlags)) & 0x01 && userInfo.user.Profile) {
+                  if (
+                    Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.payload.requestFlags)) & 0x01 &&
+                    userInfo.user.Profile
+                  ) {
                     flagParameters.push(
                       new Parameter({
                         type: ParameterTypes.ONE,
@@ -1111,7 +1164,7 @@ const bosServer = Net.createServer((socket) => {
                     );
                   }
                   if (
-                    Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.requestFlags)) & 0x02 &&
+                    Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.payload.requestFlags)) & 0x02 &&
                     userInfo.user.AwayMessage &&
                     userInfo.user.AwayMessage.length
                   ) {
@@ -1129,7 +1182,7 @@ const bosServer = Net.createServer((socket) => {
                     );
                   }
                   if (
-                    Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.requestFlags)) & 0x04 &&
+                    Util.Bit.BufferToUInt32(Util.Bit.ToBuffer(snac.payload.requestFlags)) & 0x04 &&
                     userInfo.user.Capabilities
                   ) {
                     flagParameters.push(
@@ -1141,35 +1194,40 @@ const bosServer = Net.createServer((socket) => {
                   }
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: FoodGroups.LOCATE,
                         type: SNACTypes.SIX,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
+                        parameters: flagParameters,
                         extensions: {
                           formattedScreenName: userInfo.user.FormattedScreenName,
                         },
-                        parameters: flagParameters,
-                      }).ToBuffer()
+                      }
                     )
                   );
                   return;
                 }
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.LOCATE,
                       type: SNACTypes.ONE,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(Util.Bit.UInt16ToBytes(4))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  Util.Bit.UInt16ToBytes(4)
                 );
                 return;
               }
@@ -1178,18 +1236,20 @@ const bosServer = Net.createServer((socket) => {
           }
           case FoodGroups.BUDDY: {
             // buddy list management service
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: // buddy rights request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.BUDDY,
                       type: SNACTypes.THREE,
                       flags: 0,
-                      requestId: snac.requestId,
+                      requestId: snac.header.requestId,
+                    },
+                    {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.TWO,
@@ -1204,7 +1264,7 @@ const bosServer = Net.createServer((socket) => {
                           data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(32)),
                         }),
                       ],
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
@@ -1213,7 +1273,7 @@ const bosServer = Net.createServer((socket) => {
           }
           case FoodGroups.ICBM: {
             // icbm service
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: {
                 // update icbm params request.
                 return;
@@ -1223,51 +1283,53 @@ const bosServer = Net.createServer((socket) => {
                 //console.log("SUPER SNAC", snac);
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: 0x0004,
                       type: 0x0005,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(
-                    Util.Bit.UInt16ToBytes(2),
-                    Util.Bit.UInt32ToBytes(3),
-                    Util.Bit.UInt16ToBytes(512),
-                    Util.Bit.UInt16ToBytes(999),
-                    Util.Bit.UInt16ToBytes(999),
-                    Util.Bit.UInt16ToBytes(0),
-                    Util.Bit.UInt16ToBytes(1000)
-                  )
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  [
+                    ...Util.Bit.UInt16ToBytes(2),
+                    ...Util.Bit.UInt32ToBytes(3),
+                    ...Util.Bit.UInt16ToBytes(512),
+                    ...Util.Bit.UInt16ToBytes(999),
+                    ...Util.Bit.UInt16ToBytes(999),
+                    ...Util.Bit.UInt16ToBytes(0),
+                    ...Util.Bit.UInt16ToBytes(1000),
+                  ]
                 );
                 return;
               }
               case SNACTypes.SIX: {
                 // incoming icbm
                 const existingSession = _sessions.item({
-                  screenName: snac.screenName,
+                  screenName: snac.payload.screenName,
                 });
                 if (existingSession) {
-                  const ack = snac.parameters?.find((item) => {
+                  const ack = snac.payload.parameters?.find((item) => {
                     return item.type === ParameterTypes.THREE;
                   });
                   if (ack) {
-                    // SendData(session, snac.requestId, 2,
-                    // Util.Bit.BufferToBytes(new SNAC({
+                    // SendData(session, snac.header.requestId, 2,
+                    // new SNAC({
                     //     foodGroup: FoodGroups.FOUR,
                     //     type: Types.TWELVE,
                     //     flags: 0,
-                    //     requestId: snac.requestId
-                    // }).ToBuffer()).concat(
-                    //     snac.cookie,
-                    //     snac.channel,
-                    //     Util.Bit.UInt8ToBytes(existingSession.user.FormattedScreenName.length),
-                    //     Util.Bit.StringToBytes(existingSession.user.FormattedScreenName)
-                    // ));
+                    //     requestId: snac.header.requestId
+                    // }), [
+                    //     ...snac.payload.cookie,
+                    //     ...snac.payload.channel,
+                    //     ...Util.Bit.UInt8ToBytes(existingSession.user.FormattedScreenName.length),
+                    //     ...Util.Bit.StringToBytes(existingSession.user.FormattedScreenName)
+                    // ]);
                   }
-                  const frags = snac.parameters
+                  const frags = snac.payload.parameters
                     ?.map((item) => {
                       if (item.data instanceof Buffer) {
                         return Util.Bit.ToBuffer([]);
@@ -1297,48 +1359,50 @@ const bosServer = Net.createServer((socket) => {
                     existingSession,
                     0,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: FoodGroups.ICBM,
                         type: SNACTypes.SEVEN,
                         flags: 0,
                         requestId: 0,
-                        extensions: {
-                          cookie: snac.cookie,
-                          channel: snac.channel,
-                          formattedScreenName: session.user?.FormattedScreenName,
-                          warningLevel: 0,
-                        },
+                      },
+                      {
                         parameters:
-                          snac.channel === 1
+                          snac.payload.channel === 1
                             ? [
                                 new Parameter({
                                   type: ParameterTypes.TWO,
                                   data: Buffer.concat(frags ?? []),
                                 }),
                               ]
-                            : snac.channel === 2
+                            : snac.payload.channel === 2
                               ? [
                                   new Parameter({
                                     type: ParameterTypes.FIVE,
-                                    data: snac.parameters?.find((item) => {
+                                    data: snac.payload.parameters?.find((item) => {
                                       return item.type === ParameterTypes.FIVE;
                                     })?.data as Buffer,
                                   }),
                                 ]
                               : [],
-                      }).ToBuffer()
-                    ),
-                    true
+                        extensions: {
+                          cookie: snac.payload.cookie,
+                          channel: snac.payload.channel,
+                          formattedScreenName: session.user?.FormattedScreenName,
+                          warningLevel: 0,
+                        },
+                      }
+                    )
                   );
                   return;
                 }
 
-                // SendData(session, snac.requestId, 2, new SNAC({
+                // SendData(session, snac.header.requestId, 2, new SNAC({
                 //     foodGroup: 0x04,
                 //     type: 0x01,
                 //     flags: 0,
-                //     requestId: snac.requestId,
+                //     requestId: snac.header.requestId,
                 //     extensions: {
                 //         errorId: 4
                 //     }
@@ -1358,24 +1422,27 @@ const bosServer = Net.createServer((socket) => {
           }
           case FoodGroups.ADMIN: {
             // administrative service
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: {
                 // admin information request.
                 if (
-                  snac.parameters?.find((item) => {
+                  snac.payload.parameters?.find((item) => {
                     return item.type === ParameterTypes.ONE;
                   })
                 ) {
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: FoodGroups.ADMIN,
                         type: SNACTypes.THREE,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.ONE,
@@ -1385,25 +1452,28 @@ const bosServer = Net.createServer((socket) => {
                         extensions: {
                           permissions: 3,
                         },
-                      }).ToBuffer()
+                      }
                     )
                   );
                 }
                 if (
-                  snac.parameters?.find((item) => {
+                  snac.payload.parameters?.find((item) => {
                     return item.type === ParameterTypes.SEVENTEEN;
                   })
                 ) {
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: FoodGroups.ADMIN,
                         type: SNACTypes.THREE,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.SEVENTEEN,
@@ -1413,32 +1483,35 @@ const bosServer = Net.createServer((socket) => {
                         extensions: {
                           permissions: 3,
                         },
-                      }).ToBuffer()
+                      }
                     )
                   );
                 }
                 if (
-                  snac.parameters?.find((item) => {
+                  snac.payload.parameters?.find((item) => {
                     return item.type === ParameterTypes.NINETEEN;
                   })
                 ) {
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: FoodGroups.ADMIN,
                         type: SNACTypes.THREE,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.NINETEEN,
                             data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(3)),
                           }),
                         ],
-                      }).ToBuffer()
+                      }
                     )
                   );
                 }
@@ -1448,11 +1521,11 @@ const bosServer = Net.createServer((socket) => {
                 // admin information update request.
                 const buffer: Buffer[] = [];
                 if (
-                  snac.parameters?.find((item) => {
+                  snac.payload.parameters?.find((item) => {
                     return item.type === ParameterTypes.ONE;
                   })
                 ) {
-                  const parameter = snac.parameters?.find((item) => {
+                  const parameter = snac.payload.parameters?.find((item) => {
                     return item.type === ParameterTypes.ONE;
                   })?.data as Buffer;
                   if (
@@ -1493,7 +1566,7 @@ const bosServer = Net.createServer((socket) => {
                     );
                   }
                 }
-                const parameter = snac.parameters?.find((item) => {
+                const parameter = snac.payload.parameters?.find((item) => {
                   return item.type === ParameterTypes.SEVENTEEN;
                 })?.data as Buffer;
                 if (parameter && session.user) {
@@ -1534,7 +1607,7 @@ const bosServer = Net.createServer((socket) => {
                   }
                 }
                 if (
-                  snac.parameters?.find((item) => {
+                  snac.payload.parameters?.find((item) => {
                     return item.type === ParameterTypes.NINETEEN;
                   })
                 ) {
@@ -1562,28 +1635,33 @@ const bosServer = Net.createServer((socket) => {
                 }
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.ADMIN,
                       type: SNACTypes.FIVE,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(...buffer.map((b) => Util.Bit.BufferToBytes(b)))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  ...buffer.map((b) => Util.Bit.BufferToBytes(b))
                 );
                 if (session.user) {
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: 0x0001,
                         type: 0x000f,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.ONE,
@@ -1632,7 +1710,7 @@ const bosServer = Net.createServer((socket) => {
                         extensions: {
                           formattedScreenName: session.user.FormattedScreenName,
                         },
-                      }).ToBuffer()
+                      }
                     )
                   );
                 }
@@ -1647,19 +1725,21 @@ const bosServer = Net.createServer((socket) => {
           }
           case FoodGroups.PD: {
             // privacy management service
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: {
                 // privacy rights request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.PD,
                       type: SNACTypes.THREE,
                       flags: 0,
-                      requestId: snac.requestId,
+                      requestId: snac.header.requestId,
+                    },
+                    {
                       parameters: [
                         new Parameter({
                           type: ParameterTypes.TWO,
@@ -1670,7 +1750,7 @@ const bosServer = Net.createServer((socket) => {
                           data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(220)),
                         }),
                       ],
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
@@ -1700,19 +1780,21 @@ const bosServer = Net.createServer((socket) => {
           }
           case FoodGroups.FEEDBAG: {
             // server side information service
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: {
                 // feedbag rights request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.FEEDBAG,
                       type: SNACTypes.THREE,
                       flags: 0,
-                      requestId: snac.requestId,
+                      requestId: snac.header.requestId,
+                    },
+                    {
                       parameters: [
                         new Parameter({
                           type: 0x04,
@@ -1756,7 +1838,7 @@ const bosServer = Net.createServer((socket) => {
                           data: Util.Bit.ToBuffer([0x00, 0x06, 0x0f, 0x0e]),
                         }),
                       ],
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
@@ -1767,85 +1849,97 @@ const bosServer = Net.createServer((socket) => {
                 const timeStamp = await session.user?.getFeedbagTimestamp();
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.FEEDBAG,
                       type: SNACTypes.SIX,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(
-                    Util.Bit.UInt8ToBytes(0),
-                    Util.Bit.UInt16ToBytes(buddyList?.length ?? 0),
-                    ...(buddyList?.map((item) =>
-                      Util.Bit.BufferToBytes(
-                        new SSI({
-                          name: item.Name,
-                          groupId: item.GroupID,
-                          itemId: item.BuddyID,
-                          classId: item.ClassID,
-                          attributes: Util.Bit.BufferToBytes(item.Attributes),
-                        }).ToBuffer()
-                      )
-                    ) ?? []),
-                    Util.Bit.UInt32ToBytes(new Date(timeStamp ?? 0).getTime())
-                  )
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  [
+                    ...Util.Bit.UInt8ToBytes(0),
+                    ...Util.Bit.UInt16ToBytes(buddyList?.length ?? 0),
+                    ...(
+                      buddyList?.map((item) =>
+                        Util.Bit.BufferToBytes(
+                          new SSI({
+                            name: item.Name,
+                            groupId: item.GroupID,
+                            itemId: item.BuddyID,
+                            classId: item.ClassID,
+                            attributes: Util.Bit.BufferToBytes(item.Attributes),
+                          }).ToBuffer()
+                        )
+                      ) ?? []
+                    ).flat(),
+                    ...Util.Bit.UInt32ToBytes(new Date(timeStamp ?? 0).getTime()),
+                  ]
                 );
                 return;
               }
               case SNACTypes.FIVE: {
                 // feedbag request if modified.
-                const date: Date = new Date(snac.date.getTime());
-                const count = snac.count;
+                const date: Date = new Date(snac.payload.date.getTime());
+                const count = snac.payload.count;
                 if (session.user) {
                   const buddyList = await session.user.getFeedbagBuddyList();
                   const timeStamp: Date = await session.user.getFeedbagTimestamp();
                   if (timeStamp != date && buddyList?.length != count) {
                     SendData(
                       session,
-                      snac.requestId,
+                      snac.header.requestId,
                       2,
-                      Util.Bit.BufferToBytes(
-                        new SNAC({
+
+                      new SNAC(
+                        {
                           foodGroup: FoodGroups.FEEDBAG,
                           type: SNACTypes.SIX,
                           flags: 0,
-                          requestId: snac.requestId,
-                        }).ToBuffer()
-                      ).concat(
-                        Util.Bit.UInt8ToBytes(0),
-                        Util.Bit.UInt16ToBytes(buddyList?.length ?? 0),
-                        ...(buddyList?.map((item) =>
-                          Util.Bit.BufferToBytes(
-                            new SSI({
-                              name: item.Name,
-                              groupId: item.GroupID,
-                              itemId: item.BuddyID,
-                              classId: item.ClassID,
-                              attributes: Util.Bit.BufferToBytes(item.Attributes),
-                            }).ToBuffer()
-                          )
-                        ) ?? []),
-                        Util.Bit.UInt32ToBytes(timeStamp.getTime()),
-                        Util.Bit.UInt32ToBytes(date.getTime() + 2588)
-                      )
+                          requestId: snac.header.requestId,
+                        },
+                        { parameters: [] }
+                      ),
+                      [
+                        ...Util.Bit.UInt8ToBytes(0),
+                        ...Util.Bit.UInt16ToBytes(buddyList?.length ?? 0),
+                        ...(
+                          buddyList?.map((item) =>
+                            Util.Bit.BufferToBytes(
+                              new SSI({
+                                name: item.Name,
+                                groupId: item.GroupID,
+                                itemId: item.BuddyID,
+                                classId: item.ClassID,
+                                attributes: Util.Bit.BufferToBytes(item.Attributes),
+                              }).ToBuffer()
+                            )
+                          ) ?? []
+                        ).flat(),
+                        ...Util.Bit.UInt32ToBytes(timeStamp.getTime()),
+                        ...Util.Bit.UInt32ToBytes(date.getTime() + 2588),
+                      ]
                     );
                   }
                 } else {
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: FoodGroups.FEEDBAG,
                         type: SNACTypes.FIFTEEN,
                         flags: 0,
-                        requestId: snac.requestId,
-                      }).ToBuffer()
-                    ).concat(snac.date.getTime(), snac.count)
+                        requestId: snac.header.requestId,
+                      },
+                      { parameters: [] }
+                    ),
+                    [snac.payload.date.getTime(), snac.payload.count]
                   );
                 }
                 return;
@@ -1857,8 +1951,8 @@ const bosServer = Net.createServer((socket) => {
               case SNACTypes.EIGHT: {
                 // feedbag add request.
                 const buffer: Buffer[] = [];
-                if (session.user && snac.items) {
-                  for (const item of snac.items) {
+                if (session.user && snac.payload.items) {
+                  for (const item of snac.payload.items) {
                     const b = await session.user.addFeedbagItem(
                       item.name,
                       item.groupId,
@@ -1871,24 +1965,26 @@ const bosServer = Net.createServer((socket) => {
                 }
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.FEEDBAG,
                       type: SNACTypes.FOURTEEN,
                       flags: 0x8000,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(...buffer.map((b) => Util.Bit.BufferToBytes(b)))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  ...buffer.map((b) => Util.Bit.BufferToBytes(b))
                 );
                 return;
               }
               case SNACTypes.NINE: {
                 // feedbag update request.
                 const buffer: Buffer[] = [];
-                if (session.user && snac.items) {
-                  for (const item of snac.items) {
+                if (session.user && snac.payload.items) {
+                  for (const item of snac.payload.items) {
                     const b = await session.user.updateFeedbagItem(
                       item.name,
                       item.groupId,
@@ -1901,24 +1997,28 @@ const bosServer = Net.createServer((socket) => {
                 }
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.FEEDBAG,
                       type: SNACTypes.FOURTEEN,
                       flags: 0x8000,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(...buffer.map((b) => Util.Bit.BufferToBytes(b)))
+                      requestId: snac.header.requestId,
+                    },
+                    {
+                      parameters: [],
+                    }
+                  ),
+                  ...buffer.map((b) => Util.Bit.BufferToBytes(b))
                 );
                 return;
               }
               case SNACTypes.TEN: {
                 // feedbag delete request.
                 const buffer: Buffer[] = [];
-                if (session.user && snac.items) {
-                  for (const item of snac.items) {
+                if (session.user && snac.payload.items) {
+                  for (const item of snac.payload.items) {
                     const b = await session.user.deleteFeedbagItem(
                       item.name,
                       item.groupId,
@@ -1931,16 +2031,18 @@ const bosServer = Net.createServer((socket) => {
                 }
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.FEEDBAG,
                       type: SNACTypes.FOURTEEN,
                       flags: 0x8000,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(...buffer.map((b) => Util.Bit.BufferToBytes(b)))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  ...buffer.map((b) => Util.Bit.BufferToBytes(b))
                 );
                 return;
               }
@@ -2016,12 +2118,14 @@ const aosServer = Net.createServer((socket) => {
           item,
           0,
           2,
-          Util.Bit.BufferToBytes(
-            new SNAC({
+          new SNAC(
+            {
               foodGroup: FoodGroups.CHAT,
               type: SNACTypes.FOUR,
               flags: 0,
               requestId: 0,
+            },
+            {
               parameters: [
                 new Parameter({
                   type: ParameterTypes.ONE,
@@ -2040,7 +2144,7 @@ const aosServer = Net.createServer((socket) => {
                 formattedScreenName: session.parent?.user?.FormattedScreenName,
                 warningLevel: 0,
               },
-            }).ToBuffer()
+            }
           )
         );
       });
@@ -2111,16 +2215,19 @@ const aosServer = Net.createServer((socket) => {
                   session,
                   0,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: FoodGroups.OSERVICE,
                       type: SNACTypes.THREE,
                       flags: 0,
                       requestId: 0,
+                    },
+                    {
+                      parameters: [],
                       extensions: {
                         families: [1, 13, 14, 15, 16].map((family) => new Family({ type: family })),
                       },
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
@@ -2140,24 +2247,26 @@ const aosServer = Net.createServer((socket) => {
       case 2: {
         // snac
         // get SNAC packet
-        const snac = new SNAC(data);
+        const snac = new SNAC(data.subarray(0, 10), data.subarray(10));
         //console.log('AOS', snac);
-        switch (snac.foodGroup) {
+        switch (snac.header.foodGroup) {
           case FoodGroups.OSERVICE: // generic service controls
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: // client service ready
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: 0x000d,
                       type: 0x0009,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat([
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  [
                     // FIXME: Figure out what this is.
                     0x00, 0x02, 0x00, 0x01, 0x11, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x03, 0x00,
                     0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
@@ -2220,7 +2329,7 @@ const aosServer = Net.createServer((socket) => {
                     0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
                     0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
                     0xda, 0x00, 0x02, 0x00, 0xe8,
-                  ])
+                  ]
                 );
                 if (session.groupId === 0x0e) {
                   session.chatCookie = session.cookie.split('.')[0];
@@ -2234,12 +2343,15 @@ const aosServer = Net.createServer((socket) => {
                           session,
                           0,
                           2,
-                          Util.Bit.BufferToBytes(
-                            new SNAC({
+
+                          new SNAC(
+                            {
                               foodGroup: 0x000e,
                               type: 0x0003,
                               flags: 0,
                               requestId: 0,
+                            },
+                            {
                               parameters: [
                                 new Parameter({
                                   type: 0x01,
@@ -2258,7 +2370,7 @@ const aosServer = Net.createServer((socket) => {
                                 formattedScreenName: item.parent?.user?.FormattedScreenName,
                                 warningLevel: 0,
                               },
-                            }).ToBuffer()
+                            }
                           )
                         );
                       });
@@ -2268,12 +2380,15 @@ const aosServer = Net.createServer((socket) => {
                           item,
                           0,
                           2,
-                          Util.Bit.BufferToBytes(
-                            new SNAC({
+
+                          new SNAC(
+                            {
                               foodGroup: 0x000e,
                               type: 0x0003,
                               flags: 0,
                               requestId: 0,
+                            },
+                            {
                               parameters: [
                                 new Parameter({
                                   type: 0x01,
@@ -2292,7 +2407,7 @@ const aosServer = Net.createServer((socket) => {
                                 formattedScreenName: session.parent?.user?.FormattedScreenName,
                                 warningLevel: 0,
                               },
-                            }).ToBuffer()
+                            }
                           )
                         );
                       });
@@ -2303,16 +2418,18 @@ const aosServer = Net.createServer((socket) => {
               case SNACTypes.SIX: // rate limits request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: 0x0001,
                       type: 0x0007,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat(Util.Bit.UInt16ToBytes(0))
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  Util.Bit.UInt16ToBytes(0)
                 );
                 return;
               case SNACTypes.TWENTYTHREE: // service host version request.
@@ -2320,12 +2437,15 @@ const aosServer = Net.createServer((socket) => {
                   session,
                   0,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: 0x0001,
                       type: 0x0018,
                       flags: 0,
                       requestId: 0,
+                    },
+                    {
+                      parameters: [],
                       extensions: {
                         families: [
                           new Family({ type: 1, version: 4 }),
@@ -2347,28 +2467,30 @@ const aosServer = Net.createServer((socket) => {
                           new Family({ type: 37, version: 1 }),
                         ],
                       },
-                    }).ToBuffer()
+                    }
                   )
                 );
                 return;
             }
             break;
           case FoodGroups.CHAT_NAV: // chat navigation service
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.TWO: {
                 // chatnav rights request.
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: 0x000d,
                       type: 0x0009,
                       flags: 0,
-                      requestId: snac.requestId,
-                    }).ToBuffer()
-                  ).concat([
+                      requestId: snac.header.requestId,
+                    },
+                    { parameters: [] }
+                  ),
+                  [
                     // FIXME: Figure out what this is.
                     0x00, 0x02, 0x00, 0x01, 0x11, 0x00, 0x03, 0x00, 0x3c, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x03, 0x00,
                     0x01, 0x16, 0x00, 0x04, 0x00, 0x02, 0x1e, 0x00, 0x00, 0xc9, 0x00, 0x02, 0x00, 0x40, 0x00, 0xca,
@@ -2431,12 +2553,12 @@ const aosServer = Net.createServer((socket) => {
                     0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x00, 0xd1, 0x00, 0x02, 0x07, 0xd0,
                     0x00, 0xd2, 0x00, 0x02, 0x00, 0x1a, 0x00, 0xd4, 0x00, 0x00, 0x00, 0xd5, 0x00, 0x01, 0x01, 0x00,
                     0xda, 0x00, 0x02, 0x00, 0xe8,
-                  ])
+                  ]
                 );
                 return;
               }
               case SNACTypes.FOUR: {
-                const existingChat = _chatrooms.item({ cookie: snac.cookie });
+                const existingChat = _chatrooms.item({ cookie: snac.payload.cookie });
                 if (!session.parent?.user) {
                   return;
                 }
@@ -2444,14 +2566,17 @@ const aosServer = Net.createServer((socket) => {
                   existingChat.users.push(session.parent.user);
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: FoodGroups.CHAT_NAV,
                         type: SNACTypes.NINE,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.TWO,
@@ -2538,7 +2663,7 @@ const aosServer = Net.createServer((socket) => {
                             ),
                           }),
                         ],
-                      }).ToBuffer()
+                      }
                     )
                   );
                   return;
@@ -2547,13 +2672,13 @@ const aosServer = Net.createServer((socket) => {
               }
               case SNACTypes.EIGHT: {
                 // create/join chat.
-                const chatRoomName = snac.parameters?.find((item) => {
+                const chatRoomName = snac.payload.parameters?.find((item) => {
                   return item.type === ParameterTypes.TWOHUNDREDELEVEN;
                 });
-                const chatCharset = snac.parameters?.find((item) => {
+                const chatCharset = snac.payload.parameters?.find((item) => {
                   return item.type === ParameterTypes.TWOHUNDREDFOURTEEN;
                 });
-                const chatLang = snac.parameters?.find((item) => {
+                const chatLang = snac.payload.parameters?.find((item) => {
                   return item.type === ParameterTypes.TWOHUNDREDFIFTEEN;
                 });
                 const existingChat = _chatrooms.item({
@@ -2566,14 +2691,17 @@ const aosServer = Net.createServer((socket) => {
                   existingChat.users.push(session.parent.user);
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: 0x0d,
                         type: 0x09,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.TWO,
@@ -2660,16 +2788,16 @@ const aosServer = Net.createServer((socket) => {
                             ),
                           }),
                         ],
-                      }).ToBuffer()
+                      }
                     )
                   );
                   return;
                 } else {
                   //console.log("CHAT ROOM")
                   const newRoom = _chatrooms.add({
-                    exchange: snac.exchange,
-                    cookie: snac.cookie === 'create' ? Util.Strings.GenerateChatCookie() : snac.cookie,
-                    detailLevel: snac.detailLevel,
+                    exchange: snac.payload.exchange,
+                    cookie: snac.payload.cookie === 'create' ? Util.Strings.GenerateChatCookie() : snac.payload.cookie,
+                    detailLevel: snac.payload.detailLevel,
                     creator: session.parent.user.ScreenName,
                     name: Util.Bit.ToString(chatRoomName.data as Buffer),
                     charset: Util.Bit.ToString(chatCharset.data as Buffer),
@@ -2681,14 +2809,17 @@ const aosServer = Net.createServer((socket) => {
                   newRoom.users.push(session.parent.user);
                   SendData(
                     session,
-                    snac.requestId,
+                    snac.header.requestId,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: 0x0d,
                         type: 0x09,
                         flags: 0,
-                        requestId: snac.requestId,
+                        requestId: snac.header.requestId,
+                      },
+                      {
                         parameters: [
                           new Parameter({
                             type: ParameterTypes.TWO,
@@ -2775,7 +2906,7 @@ const aosServer = Net.createServer((socket) => {
                             ),
                           }),
                         ],
-                      }).ToBuffer()
+                      }
                     )
                   );
                   return;
@@ -2785,7 +2916,7 @@ const aosServer = Net.createServer((socket) => {
             break;
           case FoodGroups.CHAT:
             // chat service
-            switch (snac.type) {
+            switch (snac.header.type) {
               case SNACTypes.FIVE: {
                 if (!session.parent?.user) {
                   return;
@@ -2818,7 +2949,7 @@ const aosServer = Net.createServer((socket) => {
                     )
                   ),
                 });
-                const parameterMessageInformation = snac.parameters?.find((item) => {
+                const parameterMessageInformation = snac.payload.parameters?.find((item) => {
                   return item.type === ParameterTypes.FIVE;
                 });
                 if (!parameterMessageInformation) {
@@ -2827,18 +2958,16 @@ const aosServer = Net.createServer((socket) => {
                 // reflection ??
                 SendData(
                   session,
-                  snac.requestId,
+                  snac.header.requestId,
                   2,
-                  Util.Bit.BufferToBytes(
-                    new SNAC({
+                  new SNAC(
+                    {
                       foodGroup: 0x0e,
                       type: 0x06,
                       flags: 0,
-                      requestId: snac.requestId,
-                      extensions: {
-                        cookie: snac.cookie,
-                        channel: snac.channel,
-                      },
+                      requestId: snac.header.requestId,
+                    },
+                    {
                       parameters: [
                         userInfoBlock,
                         new Parameter({
@@ -2847,7 +2976,11 @@ const aosServer = Net.createServer((socket) => {
                         }),
                         parameterMessageInformation,
                       ],
-                    }).ToBuffer()
+                      extensions: {
+                        cookie: snac.payload.cookie,
+                        channel: snac.payload.channel,
+                      },
+                    }
                   )
                 );
                 if (!session.chat?.sessions) {
@@ -2861,18 +2994,21 @@ const aosServer = Net.createServer((socket) => {
                     userSession,
                     0,
                     2,
-                    Util.Bit.BufferToBytes(
-                      new SNAC({
+
+                    new SNAC(
+                      {
                         foodGroup: 0x0e,
                         type: 0x06,
                         flags: 0,
                         requestId: 0,
-                        extensions: {
-                          cookie: snac.cookie,
-                          channel: snac.channel,
-                        },
+                      },
+                      {
                         parameters: [userInfoBlock, parameterMessageInformation],
-                      }).ToBuffer()
+                        extensions: {
+                          cookie: snac.payload.cookie,
+                          channel: snac.payload.channel,
+                        },
+                      }
                     )
                   );
                 });
@@ -2917,7 +3053,7 @@ function createMessage(asciiString: string) {
 
   const length = Buffer.byteLength(asciiString, 'utf8') + 4;
   const requiredBytes = [5, 1, 0, 3, 1, 1, 2, 1, 1, 0, length, 0, 0, 0, 0];
-  console.log(requiredBytes);
+
   // Convert ASCII string to hexadecimal
   const hexString = asciiString
     .split('')
@@ -2942,36 +3078,40 @@ app.get('/old/:text', (req, res) => {
   const text = req.params.text;
   const newMessage = createMessage(`<HTML><BODY BGCOLOR="#ffffff"><FONT LANG="0">${text}</FONT></BODY></HTML>`);
 
-  const newSnac = new SNAC({
-    foodGroup: 0x04,
-    type: 0x07,
-    flags: 0,
-    requestId: 0,
-    extensions: {
-      cookie: _snac.cookie,
-      channel: _snac.channel,
-      formattedScreenName: _session.user?.FormattedScreenName,
-      warningLevel: 0,
+  const newSnac = new SNAC(
+    {
+      foodGroup: 0x04,
+      type: 0x07,
+      flags: 0,
+      requestId: 0,
     },
-    parameters: [
-      _snac.channel == 1
-        ? new Parameter({
-            type: ParameterTypes.TWO,
-            data: Util.Bit.ToBuffer(newMessage),
-          })
-        : _snac.channel == 2
+    {
+      parameters: [
+        _snac.payload.channel == 1
           ? new Parameter({
-              type: ParameterTypes.FIVE,
-              data:
-                _snac.parameters?.find((item) => {
-                  return item.type === ParameterTypes.FIVE;
-                })?.data ?? Util.Bit.ToBuffer([]),
+              type: ParameterTypes.TWO,
+              data: Util.Bit.ToBuffer(newMessage),
             })
-          : ({} as Parameter),
-    ],
-  }).ToBuffer();
+          : _snac.payload.channel == 2
+            ? new Parameter({
+                type: ParameterTypes.FIVE,
+                data:
+                  _snac.payload.parameters?.find((item) => {
+                    return item.type === ParameterTypes.FIVE;
+                  })?.data ?? Util.Bit.ToBuffer([]),
+              })
+            : ({} as Parameter),
+      ],
+      extensions: {
+        cookie: _snac.payload.cookie,
+        channel: _snac.payload.channel,
+        formattedScreenName: _session.user?.FormattedScreenName,
+        warningLevel: 0,
+      },
+    }
+  );
 
-  SendData(_existingSession, 0, 2, Util.Bit.BufferToBytes(newSnac));
+  SendData(_existingSession, 0, 2, newSnac);
 
   res.send('Hello World!');
 });
@@ -2984,36 +3124,40 @@ app.post('/message', (req, res) => {
   const { text, name } = json;
   const newMessage = createMessage(text);
 
-  const newSnac = new SNAC({
-    foodGroup: 0x04,
-    type: 0x07,
-    flags: 0,
-    requestId: 0,
-    extensions: {
-      cookie: _snac.cookie,
-      channel: _snac.channel,
-      formattedScreenName: name,
-      warningLevel: 0,
+  const newSnac = new SNAC(
+    {
+      foodGroup: 0x04,
+      type: 0x07,
+      flags: 0,
+      requestId: 0,
     },
-    parameters: [
-      _snac.channel == 1
-        ? new Parameter({
-            type: ParameterTypes.TWO,
-            data: Util.Bit.ToBuffer(newMessage),
-          })
-        : _snac.channel == 2
+    {
+      parameters: [
+        _snac.payload.channel == 1
           ? new Parameter({
-              type: ParameterTypes.FIVE,
-              data:
-                _snac.parameters?.find((item) => {
-                  return item.type === ParameterTypes.FIVE;
-                })?.data ?? Util.Bit.ToBuffer([]),
+              type: ParameterTypes.TWO,
+              data: Util.Bit.ToBuffer(newMessage),
             })
-          : ({} as Parameter),
-    ],
-  }).ToBuffer();
+          : _snac.payload.channel == 2
+            ? new Parameter({
+                type: ParameterTypes.FIVE,
+                data:
+                  _snac.payload.parameters?.find((item) => {
+                    return item.type === ParameterTypes.FIVE;
+                  })?.data ?? Util.Bit.ToBuffer([]),
+              })
+            : ({} as Parameter),
+      ],
+      extensions: {
+        cookie: _snac.payload.cookie,
+        channel: _snac.payload.channel,
+        formattedScreenName: name,
+        warningLevel: 0,
+      },
+    }
+  );
 
-  SendData(_existingSession, 0, 2, Util.Bit.BufferToBytes(newSnac));
+  SendData(_existingSession, 0, 2, newSnac);
 
   res.send('Hello World!');
 });
@@ -3021,39 +3165,43 @@ app.post('/message', (req, res) => {
 function sentAIMMessage(screenName: string, message: string) {
   const newMessage = createMessage(message);
 
-  const newSnac = new SNAC({
-    foodGroup: 0x04,
-    type: 0x07,
-    flags: 0,
-    requestId: 0,
-    extensions: {
-      cookie: _snac.cookie,
-      channel: _snac.channel,
-      formattedScreenName: screenName,
-      warningLevel: 0,
+  const newSnac = new SNAC(
+    {
+      foodGroup: 0x04,
+      type: 0x07,
+      flags: 0,
+      requestId: 0,
     },
-    parameters:
-      _snac.channel == 1
-        ? [
-            new Parameter({
-              type: ParameterTypes.TWO,
-              data: Util.Bit.ToBuffer(newMessage),
-            }),
-          ]
-        : _snac.channel == 2
+    {
+      parameters:
+        _snac.payload.channel == 1
           ? [
               new Parameter({
-                type: ParameterTypes.FIVE,
-                data:
-                  _snac.parameters?.find((item) => {
-                    return item.type === ParameterTypes.FIVE;
-                  })?.data ?? Util.Bit.ToBuffer(''),
+                type: ParameterTypes.TWO,
+                data: Util.Bit.ToBuffer(newMessage),
               }),
             ]
-          : [],
-  }).ToBuffer();
+          : _snac.payload.channel == 2
+            ? [
+                new Parameter({
+                  type: ParameterTypes.FIVE,
+                  data:
+                    _snac.payload.parameters?.find((item) => {
+                      return item.type === ParameterTypes.FIVE;
+                    })?.data ?? Util.Bit.ToBuffer(''),
+                }),
+              ]
+            : [],
+      extensions: {
+        cookie: _snac.payload.cookie,
+        channel: _snac.payload.channel,
+        formattedScreenName: screenName,
+        warningLevel: 0,
+      },
+    }
+  );
 
-  SendData(_existingSession, 0, 2, Util.Bit.BufferToBytes(newSnac));
+  SendData(_existingSession, 0, 2, newSnac);
 }
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`));

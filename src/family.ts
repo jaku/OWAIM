@@ -11,7 +11,7 @@ class Family {
   ToBuffer() {
     return Util.Bit.ToBuffer([
       ...Util.Bit.UInt16ToBytes(this.type),
-      ...(this.version ? Util.Bit.UInt16ToBytes(this.version) : []),
+      ...(this.version >= 0 ? Util.Bit.UInt16ToBytes(this.version) : []),
     ]);
   }
   static GetFamilies(bytes: number[]) {

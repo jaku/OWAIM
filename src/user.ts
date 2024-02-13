@@ -51,7 +51,8 @@ class User {
     session: Session,
     sessions: SessionManager,
     sendDataCallback: {
-      (session: Session, requestId: number, channel: number, bytes: number[], echo?: boolean): void;
+      // sendData()
+      (session: Session, requestId: number, channel: number, snac: SNAC | number[], extra?: number[]): void;
     }
   ) {
     const onBuddyList = await db.getOnBuddyList(this.ScreenName);
@@ -73,15 +74,14 @@ class User {
             item,
             0,
             2,
-            Util.Bit.BufferToBytes(
-              new SNAC({
+            new SNAC(
+              {
                 foodGroup: FoodGroups.BUDDY,
                 type: Types.ELEVEN,
                 flags: 0,
                 requestId: 0,
-                extensions: {
-                  formattedScreenName: this.FormattedScreenName,
-                },
+              },
+              {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
@@ -102,7 +102,10 @@ class User {
                     data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0)),
                   }),
                 ],
-              }).ToBuffer()
+                extensions: {
+                  formattedScreenName: this.FormattedScreenName,
+                },
+              }
             )
           );
         } else {
@@ -110,22 +113,24 @@ class User {
             item,
             0,
             2,
-            Util.Bit.BufferToBytes(
-              new SNAC({
+            new SNAC(
+              {
                 foodGroup: FoodGroups.BUDDY,
                 type: Types.TWELVE,
                 flags: 0,
                 requestId: 0,
-                extensions: {
-                  formattedScreenName: this.FormattedScreenName,
-                },
+              },
+              {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
                     data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                   }),
                 ],
-              }).ToBuffer()
+                extensions: {
+                  formattedScreenName: this.FormattedScreenName,
+                },
+              }
             )
           );
         }
@@ -138,15 +143,14 @@ class User {
             session,
             0,
             2,
-            Util.Bit.BufferToBytes(
-              new SNAC({
+            new SNAC(
+              {
                 foodGroup: FoodGroups.BUDDY,
                 type: Types.TWELVE,
                 flags: 0,
                 requestId: 0,
-                extensions: {
-                  formattedScreenName: item.user.FormattedScreenName,
-                },
+              },
+              {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
@@ -172,7 +176,10 @@ class User {
                     data: Util.Bit.ToBuffer(Util.Bit.UInt32ToBytes(0)),
                   }),
                 ],
-              }).ToBuffer()
+                extensions: {
+                  formattedScreenName: item.user.FormattedScreenName,
+                },
+              }
             )
           );
         } else {
@@ -180,22 +187,24 @@ class User {
             item,
             0,
             2,
-            Util.Bit.BufferToBytes(
-              new SNAC({
+            new SNAC(
+              {
                 foodGroup: FoodGroups.BUDDY,
                 type: 0x000c,
                 flags: 0,
                 requestId: 0,
-                extensions: {
-                  formattedScreenName: item.user?.FormattedScreenName,
-                },
+              },
+              {
                 parameters: [
                   new Parameter({
                     type: ParameterTypes.ONE,
                     data: Util.Bit.ToBuffer(Util.Bit.UInt16ToBytes(0)),
                   }),
                 ],
-              }).ToBuffer()
+                extensions: {
+                  formattedScreenName: item.user?.FormattedScreenName,
+                },
+              }
             )
           );
         }

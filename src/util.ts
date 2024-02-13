@@ -39,7 +39,7 @@ const Bit = {
     if (typeof data === 'string') {
       return data;
     } else if (data instanceof Buffer) {
-      return Bit.ToBuffer(position, length ?? data.length).toString('ascii');
+      return data.toString('ascii');
     } else if (typeof data === 'number') {
       return Bit.ToString(Bit.ToBuffer(data, position, length));
     } else if (Array.isArray(data)) {
